@@ -66,21 +66,23 @@ static struct Vector3 sOpenPosition[] = {
 void elevatorRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct Elevator* elevator = (struct Elevator*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &elevator->rigidBody.transform, SCENE_SCALE);
     if (!matrix) {
         return;
     }
 
-    transformToMatrixL(&elevator->rigidBody.transform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, PROPS_ROUND_ELEVATOR_DEFAULT_BONES_COUNT);
+    // The elevator's doors are posed from how far it has opened rather than
+    // from a clip, so the bone block is filled here instead of by the
+    // armature. The block's layout is the machine's, which is what
+    // renderMatricesAt() is for.
+    RenderMatrices armature = renderStateRequestMatrixBlock(renderState, PROPS_ROUND_ELEVATOR_DEFAULT_BONES_COUNT);
     if (!armature) {
         return;
     }
 
     for (int i = 0; i < PROPS_ROUND_ELEVATOR_DEFAULT_BONES_COUNT; ++i) {
         vector3Lerp(&sClosedPosition[i], &sOpenPosition[i], elevator->openAmount, &props_round_elevator_default_bones[i].position);
-        transformToMatrixL(&props_round_elevator_default_bones[i], &armature[i], 1.0f);
+        renderMatrixFromTransform(renderMatricesAt(armature, i), &props_round_elevator_default_bones[i], 1.0f);
     }
 
     dynamicRenderListAddData(

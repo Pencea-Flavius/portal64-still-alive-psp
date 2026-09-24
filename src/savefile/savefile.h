@@ -29,6 +29,10 @@ enum VideoSaveFlags {
     VideoSaveFlagsSubtitlesEnabled = (1 << 0),
     VideoSaveFlagsCaptionsEnabled = (1 << 1),
     VideoSaveFlagsWideScreen = (1 << 2),
+    // The PSP's performance overlay: the frame rate, or the whole breakdown
+    // with a log to the memory stick. See src/system/psp/psp_profile.h.
+    VideoSaveFlagsShowFps = (1 << 3),
+    VideoSaveFlagsProfiler = (1 << 4),
 };
 
 enum GameplaySaveFlags {

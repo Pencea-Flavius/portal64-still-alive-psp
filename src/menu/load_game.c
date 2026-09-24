@@ -1,4 +1,5 @@
 #include "load_game.h"
+#include "scene/scene.h"
 
 #include "audio/soundplayer.h"
 #include "levels/levels.h"

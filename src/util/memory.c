@@ -1,4 +1,10 @@
 #include "memory.h"
+#include "assert.h"
+
+// The header renames these; the definitions have to agree.
+#undef malloc
+#undef realloc
+#undef free
 
 struct HeapSegment* gFirstFreeSegment;
 void* gHeapStart;
@@ -126,7 +132,7 @@ struct HeapSegment* getNextBlock(struct HeapSegment* at, int type)
     return (struct HeapSegment*)nextHeader;
 }
 
-void *malloc(unsigned int size)
+void *portalMalloc(unsigned int size)
 {
     struct HeapSegment* currentSegment;
     int segmentSize;
@@ -174,11 +180,11 @@ void *malloc(unsigned int size)
     return 0;
 }
 
-void *realloc(void* target, unsigned int size)
+void *portalRealloc(void* target, unsigned int size)
 {
     if (!target)
     {
-        return malloc(size);
+        return portalMalloc(size);
     }
 
     // struct HeapUsedSegment* segment = (struct HeapUsedSegment*)target - 1;
@@ -234,13 +240,13 @@ void *realloc(void* target, unsigned int size)
     // }
 
     // as a last resort, find a new chunk of memory for the block
-    void *result = malloc(size);
+    void *result = portalMalloc(size);
     memCopy(result, target, size);
-    free(target);
+    portalFree(target);
     return result;
 }
 
-void free(void* target)
+void portalFree(void* target)
 {
     if ((void*)target < gHeapStart || (void*)target >= gHeapEnd)
     {
@@ -340,7 +346,13 @@ void memCopy(void* target, const void* src, int size)
     }
 }
 
+// The PSP needs more: the portal cutter's vertices are larger there, and a
+// big wall goes past 8KB.
+#ifdef PSP
+#define STACK_MALLOC_SIZE_BYTES    (64 * 1024)
+#else
 #define STACK_MALLOC_SIZE_BYTES    (8 * 1024)
+#endif
 #define STACK_MALLOC_SIZE_WORDS (STACK_MALLOC_SIZE_BYTES >> 3)
 
 int gStackMallocAt;
@@ -360,6 +372,17 @@ void stackMallocFree(void* ptr) {
 
 void* stackMalloc(int size) {
     int nWords = (size + 7) >> 3;
+
+#ifdef PSP
+    // PSP only: overrunning this array silently corrupts what follows in .bss.
+    // The N64's 8KB is already full, as upstream, and its assert is a trap.
+    portalAssert(gStackMallocAt + nWords <= STACK_MALLOC_SIZE_WORDS);
+
+    if (gStackMallocAt + nWords > STACK_MALLOC_SIZE_WORDS) {
+        return NULL;
+    }
+#endif
+
     void* result = &gStackMalloc[gStackMallocAt];
     gStackMallocAt += nWords;
     return result;

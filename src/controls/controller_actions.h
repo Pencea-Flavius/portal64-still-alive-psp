@@ -69,6 +69,9 @@ int controllerActionSources(enum ControllerAction action, struct ControllerActio
 int controllerActionReadAnySource(struct ControllerActionSource* source);
 int controllerActionSetSource(enum ControllerAction action, struct ControllerActionSource* source, int maxSources);
 void controllerActionSetDefaultSources();
+#ifdef PSP
+void controllerActionSetTankSources();
+#endif
 
 int controllerActionUsedControllerCount();
 int controllerActionUsesController(int controllerIndex);

@@ -63,5 +63,15 @@ ENV PATH="$PATH:/opt/blender/blender-3.6.1-linux-x64"
 RUN pipx ensurepath --force
 RUN pipx install vpk
 
+# PSP toolchain. Pinned to a release rather than "latest" so the image is
+# reproducible. The ubuntu-latest asset is a glibc build and matches this image.
+ENV PSPDEV=/usr/local/pspdev
+ENV PATH="$PATH:/usr/local/pspdev/bin"
+
+RUN wget -O /tmp/pspdev.tar.gz \
+    https://github.com/pspdev/pspdev/releases/download/v20260901/pspdev-ubuntu-latest-x86_64.tar.gz && \
+    tar -xf /tmp/pspdev.tar.gz -C /usr/local && \
+    rm /tmp/pspdev.tar.gz
+
 # Avoid "dubious ownership" error when running git commands
 RUN git config --global --add safe.directory "$PWD"

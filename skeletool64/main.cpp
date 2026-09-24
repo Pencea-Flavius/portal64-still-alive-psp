@@ -95,6 +95,16 @@ aiQuaternion getUpRotation(const aiVector3D& euler) {
  * F3D - 16 vetcies in buffer
  */
 
+// The generated list is named after the material file the same way the build
+// does it: the basename up to the first dot, so "static.skm.yaml" is "static".
+static std::string materialListName(const std::string& path) {
+    size_t slash = path.find_last_of("/\\");
+    size_t start = slash == std::string::npos ? 0 : slash + 1;
+    size_t dot = path.find('.', start);
+
+    return path.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
+}
+
 int main(int argc, char *argv[]) {
     signal(SIGSEGV, handler);
     CommandLineArguments args;
@@ -112,6 +122,9 @@ int main(int argc, char *argv[]) {
     settings.mExportAnimation = args.mExportAnimation;
     settings.mExportGeometry = args.mExportGeometry;
     settings.mBonesAsVertexGroups = args.mBonesAsVertexGroups;
+    settings.mTargetPsp = args.mTargetPsp;
+    settings.mPspSharedMaterials = args.mPspSharedMaterials;
+    settings.mPspDefaultMaterialFromScene = args.mPspDefaultMaterialFromScene;
     settings.mForcePalette = args.mForcePalette;
     settings.mTargetCIBuffer = args.mTargetCIBuffer;
     settings.mTicksPerSecond = args.mFPS;
@@ -120,6 +133,17 @@ int main(int argc, char *argv[]) {
     bool hasError = false;
 
     for (auto materialFile = args.mMaterialFiles.begin(); materialFile != args.mMaterialFiles.end(); ++materialFile) {
+        // Only one of a model's -m files is also emitted as a shared list, so
+        // remember which names came from that one. Comparing the map before
+        // and after catches a name this file redefines as well as a new one.
+        bool isSharedList = !settings.mPspSharedMaterials.empty() &&
+            materialListName(*materialFile) == settings.mPspSharedMaterials;
+        std::map<std::string, std::shared_ptr<Material>> materialsBefore;
+
+        if (isSharedList) {
+            materialsBefore = settings.mMaterials;
+        }
+
         if (EndsWith(*materialFile, ".yaml") || EndsWith(*materialFile, ".yml") || EndsWith(*materialFile, ".json")) {
             if (!parseMaterials(*materialFile, settings)) {
                 hasError = true;
@@ -132,6 +156,16 @@ int main(int argc, char *argv[]) {
             }
 
             fillMissingMaterials(gTextureCache, materialScene, settings);
+        }
+
+        if (isSharedList) {
+            for (auto& material : settings.mMaterials) {
+                auto before = materialsBefore.find(material.first);
+
+                if (before == materialsBefore.end() || before->second != material.second) {
+                    settings.mPspSharedMaterialNames.insert(material.first);
+                }
+            }
         }
     }
 

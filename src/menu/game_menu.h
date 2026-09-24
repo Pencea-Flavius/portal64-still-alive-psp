@@ -1,7 +1,7 @@
 #ifndef __MENU_GAME_MENU_H___
 #define __MENU_GAME_MENU_H___
 
-#include "../graphics/graphics.h"
+#include "../graphics/render_types.h"
 #include "./menu.h"
 
 #include "./landing_menu.h"

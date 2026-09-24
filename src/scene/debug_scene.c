@@ -1,6 +1,10 @@
 #include "debug_scene.h"
 
-#include <ultra64.h>
+#include "render_plan.h"
+
+// libultra was providing this through <ultra64.h>, which this no longer
+// includes.
+#include <stdio.h>
 
 #include "dynamic_scene.h"
 #include "font/font.h"
@@ -13,15 +17,9 @@
 #include "util/frame_time.h"
 #include "util/memory.h"
 
-#include "codegen/assets/materials/ui.h"
 
 #define FREE_CAM_DEADZONE        5
 #define FREE_CAM_VELOCITY        (2.0f / 80.0f)
-
-#define PERF_METRICS_MARGIN      33
-#define PERF_METRIC_ROW_PADDING  4
-#define PERF_BAR_WIDTH           (SCREEN_WD - (PERF_METRICS_MARGIN * 2))
-#define PERF_BAR_HEIGHT          6
 
 static float lastFrameTimeMs     = 0.0f;
 static float lastCpuTimeMs       = 0.0f;
@@ -71,19 +69,6 @@ static void debugSceneUpdateFreeCamera(struct Scene* scene) {
     }
 }
 
-static void debugSceneRenderTextMetric(struct FontRenderer* renderer, char* text, int y, struct RenderState* renderState) {
-    fontRendererLayout(renderer, &gLiberationMonoFont, text, SCREEN_WD);
-
-    renderState->dl = fontRendererBuildGfx(
-        renderer,
-        gLiberationMonoImages,
-        PERF_METRICS_MARGIN,
-        y - renderer->height,
-        &gColorWhite,
-        renderState->dl
-    );
-}
-
 static uint64_t debugSceneVisibleRooms(struct RenderPlan* renderPlan) {
     uint64_t visibleRooms = 0;
 
@@ -129,45 +114,7 @@ static void debugSceneRenderMetrics(struct Scene* scene, struct RenderState* ren
         return;
     }
 
-    gSPDisplayList(renderState->dl++, ui_material_list[DEFAULT_UI_INDEX]);
-
-    gDPSetCycleType(renderState->dl++, G_CYC_1CYCLE);
-    gDPSetFillColor(renderState->dl++, (GPACK_RGBA5551(0, 0, 0, 1) << 16 | GPACK_RGBA5551(0, 0, 0, 1)));
-    gDPSetCombineLERP(
-        renderState->dl++,
-        0, 0, 0, ENVIRONMENT, 0, 0, 0, ENVIRONMENT,
-        0, 0, 0, ENVIRONMENT, 0, 0, 0, ENVIRONMENT
-    );
-    gDPSetEnvColor(renderState->dl++, 32, 32, 32, 255);
-    gSPTextureRectangle(renderState->dl++, 32 << 2, 32 << 2, (32 + 256) << 2, (32 + 8) << 2, 0, 0, 0, 1, 1);
-    gSPTextureRectangle(renderState->dl++, 32 << 2, 44 << 2, (32 + 256) << 2, (44 + 8) << 2, 0, 0, 0, 1, 1);
-    gDPPipeSync(renderState->dl++);
-    gDPSetEnvColor(renderState->dl++, 32, 255, 32, 255);
-
-    float cpuUsage = scene->cpuTime / (float)gLastFrameTime;
-    gSPTextureRectangle(
-        renderState->dl++,
-        PERF_METRICS_MARGIN << 2,
-        PERF_METRICS_MARGIN << 2,
-        (int)(PERF_METRICS_MARGIN + (PERF_BAR_WIDTH * cpuUsage)) << 2,
-        (PERF_METRICS_MARGIN + PERF_BAR_HEIGHT) << 2,
-        0,
-        0, 0,
-        1, 1
-    );
-
-    float memoryUsage = renderStateMemoryUsage(renderState);
-    gSPTextureRectangle(
-        renderState->dl++,
-        PERF_METRICS_MARGIN << 2,
-        (PERF_METRICS_MARGIN + (PERF_BAR_HEIGHT * 2)) << 2,
-        (int)(32 + 254 * memoryUsage) << 2,
-        (PERF_METRICS_MARGIN + (PERF_BAR_HEIGHT * 3)) << 2,
-        0,
-        0, 0,
-        1, 1
-    );
-    gDPPipeSync(renderState->dl++);
+    debugSceneRenderBars(scene, renderState);
 
     struct FontRenderer* fontRenderer = stackMalloc(sizeof(struct FontRenderer));
     char metricText[20];

@@ -5,6 +5,7 @@
 
 #include <iomanip>
 #include <algorithm>
+#include <map>
 #include <iomanip>
 #include <assimp/vector3.h>
 #include <assimp/vector3.inl>
@@ -632,6 +633,391 @@ void TextureDefinition::DetermineIdealFormat(const std::string& filename, G_IM_F
             siz = G_IM_SIZ::G_IM_SIZ_8b;
         }
     }
+}
+
+bool TextureDefinition::PspIs16Bit() const {
+    // RGBA16 maps straight to the GU's 5551; anything else without a palette
+    // widens to 8888.
+    return mFmt == G_IM_FMT::G_IM_FMT_RGBA && mSiz == G_IM_SIZ::G_IM_SIZ_16b;
+}
+
+// Narrower mip levels are padded to this width rather than dropped.
+#define PSP_MIN_BUFFER_WIDTH 8
+
+// A texel packed as the GE reads it with no palette, 16 or 32 bits.
+static uint32_t packPspPixel(const PixelRGBAu8& pixel, int bits) {
+    if (bits == 16) {
+        // GU 5551: alpha in bit 15, then blue, green, red.
+        return (pixel.a >= 0x80 ? 0x8000u : 0u)
+            | ((unsigned)(pixel.b >> 3) << 10)
+            | ((unsigned)(pixel.g >> 3) << 5)
+            | (unsigned)(pixel.r >> 3);
+    }
+
+    // GU 8888 is ABGR in memory, not RGBA.
+    return ((unsigned)pixel.a << 24)
+        | ((unsigned)pixel.b << 16)
+        | ((unsigned)pixel.g << 8)
+        | (unsigned)pixel.r;
+}
+
+// Narrowest buffer the GE fetches cleanly: 8 texels and at least 16 bytes a
+// row. psp_model_render.c binds with the same rule.
+static int pspMinBufferWidth(int bits) {
+    return std::max(PSP_MIN_BUFFER_WIDTH, 128 / bits);
+}
+
+// The GE's swizzled layout: 16 byte by 8 row blocks, rows within a block
+// consecutive, blocks in row order. Much faster to sample at an angle.
+static bool pspCanSwizzle(int bufferWidth, int height, int bits) {
+    int rowBytes = bufferWidth * bits / 8;
+    return rowBytes % 16 == 0 && height % 8 == 0 && height >= 8;
+}
+
+// `texels` holds a palette index or a packed colour per texel, `bits` wide.
+static std::unique_ptr<FileDefinition> writePspLevel(
+    const std::vector<uint32_t>& texels,
+    int width,
+    int height,
+    int bufferWidth,
+    int bits,
+    bool swizzle,
+    const std::string& name,
+    const std::string& location,
+    const void* owner
+) {
+    std::unique_ptr<StructureDataChunk> dataChunk(new StructureDataChunk());
+
+    const int rowBytes = bufferWidth * bits / 8;
+
+    // Linear first. Padding repeats the last texel; T4 keeps the left texel of a
+    // pair in the low nibble.
+    std::vector<uint8_t> linear(rowBytes * height, 0);
+
+    for (int y = 0; y < height; ++y) {
+        uint8_t* row = &linear[y * rowBytes];
+
+        for (int x = 0; x < bufferWidth; ++x) {
+            int readX = x < width ? x : width - 1;
+            uint32_t value = texels[readX + y * width];
+
+            if (bits == 4) {
+                row[x / 2] |= (value & 0xF) << ((x & 1) * 4);
+            } else {
+                for (int byte = 0; byte < bits / 8; ++byte) {
+                    row[x * bits / 8 + byte] = (value >> (byte * 8)) & 0xFF;
+                }
+            }
+        }
+    }
+
+    std::vector<uint8_t> ordered;
+
+    if (swizzle) {
+        ordered.reserve(linear.size());
+
+        for (int blockY = 0; blockY < height / 8; ++blockY) {
+            for (int blockX = 0; blockX < rowBytes / 16; ++blockX) {
+                for (int row = 0; row < 8; ++row) {
+                    auto start = linear.begin() + (blockY * 8 + row) * rowBytes + blockX * 16;
+                    ordered.insert(ordered.end(), start, start + 16);
+                }
+            }
+        }
+    } else {
+        ordered = linear;
+    }
+
+    // One buffer row per line: in texels for 16 and 32 bits, in bytes below.
+    const int unitBytes = bits <= 8 ? 1 : bits / 8;
+
+    for (int y = 0; y < height; ++y) {
+        std::ostringstream stream;
+
+        for (int unit = 0; unit < rowBytes / unitBytes; ++unit) {
+            uint32_t value = 0;
+
+            for (int byte = 0; byte < unitBytes; ++byte) {
+                value |= (uint32_t)ordered[y * rowBytes + unit * unitBytes + byte] << (byte * 8);
+            }
+
+            if (unit != 0) {
+                stream << ", ";
+            }
+
+            stream << "0x" << std::hex << std::setw(unitBytes * 2) << std::setfill('0') << value;
+        }
+
+        dataChunk->AddPrimitive(stream.str());
+    }
+
+    // The GE fetches texels from a 16 byte boundary.
+    const char* type = unitBytes == 1 ? "unsigned char __attribute__((aligned(16)))"
+        : unitBytes == 2 ? "unsigned short __attribute__((aligned(16)))"
+        : "unsigned int __attribute__((aligned(16)))";
+
+    return std::unique_ptr<FileDefinition>(new DataFileDefinition(
+        type, name, true, location, std::move(dataChunk), owner));
+}
+
+// Box filter.
+static std::vector<PixelRGBAu8> downsamplePsp(
+    const std::vector<PixelRGBAu8>& pixels, int width, int height
+) {
+    int halfWidth = width / 2;
+    int halfHeight = height / 2;
+
+    std::vector<PixelRGBAu8> result(halfWidth * halfHeight);
+
+    for (int y = 0; y < halfHeight; ++y) {
+        for (int x = 0; x < halfWidth; ++x) {
+            unsigned r = 0, g = 0, b = 0, a = 0;
+
+            for (int dy = 0; dy < 2; ++dy) {
+                for (int dx = 0; dx < 2; ++dx) {
+                    const PixelRGBAu8& source = pixels[(x * 2 + dx) + (y * 2 + dy) * width];
+                    r += source.r;
+                    g += source.g;
+                    b += source.b;
+                    a += source.a;
+                }
+            }
+
+            result[x + y * halfWidth] = PixelRGBAu8(r / 4, g / 4, b / 4, a / 4);
+        }
+    }
+
+    return result;
+}
+
+// The GE takes power of two sizes, so others are padded up.
+int TextureDefinition::PspPaddedSize(int value) {
+    int result = 1;
+
+    while (result < value) {
+        result *= 2;
+    }
+
+    return result;
+}
+
+std::vector<std::unique_ptr<FileDefinition>> TextureDefinition::GeneratePspDefinitions(const std::string& baseName, const std::string& location, bool mirrorS, bool mirrorT, bool alphaOnly, bool invert, bool* swizzled, std::string* format, std::unique_ptr<FileDefinition>* clut) const {
+    // readRGBAPixel() takes a mutable reference but only reads.
+    cimg_library::CImg<unsigned char>& image = const_cast<CImgu8*>(mImg)->mImg;
+
+    const bool is16Bit = PspIs16Bit();
+
+    const int contentWidth = mirrorS ? mWidth * 2 : mWidth;
+    const int contentHeight = mirrorT ? mHeight * 2 : mHeight;
+
+    // Pad rather than resample, so texel coordinates used by the 2D code stay
+    // valid. Content at the top left, padding repeats the edge.
+    int width = PspPaddedSize(contentWidth);
+    int height = PspPaddedSize(contentHeight);
+
+    std::vector<PixelRGBAu8> pixels(width * height);
+
+    for (int y = 0; y < height; ++y) {
+        const int clampY = y < contentHeight ? y : contentHeight - 1;
+        const int readY = (clampY < mHeight) ? clampY : (mHeight * 2 - 1 - clampY);
+
+        for (int x = 0; x < width; ++x) {
+            const int clampX = x < contentWidth ? x : contentWidth - 1;
+            const int readX = (clampX < mWidth) ? clampX : (mWidth * 2 - 1 - clampX);
+
+            PixelRGBAu8 pixel = readRGBAPixel(image, readX, readY);
+
+            // An I texel's intensity is also its alpha on the RDP (the font's combiner
+            // relies on it); readRGBAPixel() returns it opaque.
+            if (mFmt == G_IM_FMT::G_IM_FMT_I) {
+                pixel.a = pixel.r;
+            }
+
+            // Two tone textures: the N64 recolours the grey in the combiner with
+            // lerp(ENVIRONMENT, PRIMITIVE, TEXEL0). The GE cannot, so bake it here.
+            if (HasEffect(TextureDefinitionEffect::TwoToneGrayscale)) {
+                int i = pixel.r;
+                pixel.r = mTwoToneMin.r + (mTwoToneMax.r - mTwoToneMin.r) * i / 255;
+                pixel.g = mTwoToneMin.g + (mTwoToneMax.g - mTwoToneMin.g) * i / 255;
+                pixel.b = mTwoToneMin.b + (mTwoToneMax.b - mTwoToneMin.b) * i / 255;
+            }
+
+            // Alpha only: white, so MODULATE keeps the vertex colour. See
+            // pspTextureIsAlphaOnly().
+            if (alphaOnly) {
+                pixel.r = pixel.g = pixel.b = 0xFF;
+            }
+
+            // Inverted for GU_TFX_BLEND. See pspAnalyzeCombine().
+            if (invert) {
+                pixel.r = 0xFF - pixel.r;
+                pixel.g = 0xFF - pixel.g;
+                pixel.b = 0xFF - pixel.b;
+            }
+
+            pixels[x + y * width] = pixel;
+        }
+    }
+
+    // The whole chain first: the palette is chosen from all of it. The GU
+    // allows levels 0 to 7.
+    struct PspLevel {
+        std::vector<PixelRGBAu8> pixels;
+        int width;
+        int height;
+    };
+
+    std::vector<PspLevel> chain;
+
+    for (int level = 0; level < 8; ++level) {
+        chain.push_back({pixels, width, height});
+
+        if (width < 2 || height < 2) {
+            break;
+        }
+
+        pixels = downsamplePsp(pixels, width, height);
+        width /= 2;
+        height /= 2;
+    }
+
+    // Up to 256 colours: palette indices, T4 for 16 or fewer, T8 above. Level 0
+    // keeps its colours exactly; mip levels use the nearest palette entry once
+    // the palette is full. RGBA16 keeps its one alpha bit.
+    std::map<uint32_t, uint32_t> indexOf;
+    std::vector<uint32_t> palette;
+
+    auto paletteColour = [is16Bit](const PixelRGBAu8& pixel) {
+        PixelRGBAu8 colour = pixel;
+
+        if (is16Bit) {
+            colour.a = colour.a >= 0x80 ? 0xFF : 0;
+        }
+
+        return packPspPixel(colour, 32);
+    };
+
+    auto addColours = [&](const std::vector<PixelRGBAu8>& levelPixels) {
+        for (const PixelRGBAu8& pixel : levelPixels) {
+            if (indexOf.emplace(paletteColour(pixel), (uint32_t)palette.size()).second) {
+                palette.push_back(paletteColour(pixel));
+            }
+        }
+    };
+
+    addColours(chain[0].pixels);
+
+    int bits = is16Bit ? 16 : 32;
+
+    if (palette.size() <= 256) {
+        const size_t ownColours = palette.size();
+        const size_t paletteSize = ownColours <= 16 ? 16 : 256;
+
+        for (size_t level = 1; level < chain.size(); ++level) {
+            addColours(chain[level].pixels);
+        }
+
+        if (palette.size() > paletteSize) {
+            palette.resize(ownColours);
+
+            for (auto it = indexOf.begin(); it != indexOf.end();) {
+                it = it->second >= ownColours ? indexOf.erase(it) : std::next(it);
+            }
+        }
+
+        bits = paletteSize == 16 ? 4 : 8;
+        palette.resize(paletteSize, 0);
+    } else {
+        palette.clear();
+    }
+
+    auto texelOf = [&](const PixelRGBAu8& pixel) -> uint32_t {
+        if (palette.empty()) {
+            return packPspPixel(pixel, bits);
+        }
+
+        uint32_t colour = paletteColour(pixel);
+        auto found = indexOf.find(colour);
+
+        if (found != indexOf.end()) {
+            return found->second;
+        }
+
+        uint32_t nearest = 0;
+        int nearestDistance = INT32_MAX;
+
+        for (const auto& entry : indexOf) {
+            int distance = 0;
+
+            for (int shift = 0; shift < 32; shift += 8) {
+                int difference = (int)((colour >> shift) & 0xFF) - (int)((entry.first >> shift) & 0xFF);
+                distance += difference * difference;
+            }
+
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = entry.second;
+            }
+        }
+
+        return nearest;
+    };
+
+    if (format) {
+        *format = bits == 4 ? "GU_PSM_T4" : bits == 8 ? "GU_PSM_T8" : bits == 16 ? "GU_PSM_5551" : "GU_PSM_8888";
+    }
+
+    if (clut && !palette.empty()) {
+        std::unique_ptr<StructureDataChunk> clutChunk(new StructureDataChunk());
+
+        for (size_t start = 0; start < palette.size(); start += 8) {
+            std::ostringstream stream;
+
+            for (size_t entry = start; entry < start + 8; ++entry) {
+                if (entry != start) {
+                    stream << ", ";
+                }
+
+                stream << "0x" << std::hex << std::setw(8) << std::setfill('0') << palette[entry];
+            }
+
+            clutChunk->AddPrimitive(stream.str());
+        }
+
+        // Loaded by the GE in blocks of eight entries from a 16 byte boundary.
+        *clut = std::unique_ptr<FileDefinition>(new DataFileDefinition(
+            "unsigned int __attribute__((aligned(16)))", baseName + "_clut", true, location, std::move(clutChunk), this));
+    }
+
+    std::vector<std::unique_ptr<FileDefinition>> result;
+
+    // Swizzled when the top level can be; the chain stops at the first level
+    // too small for the blocks.
+    bool swizzle = pspCanSwizzle(std::max(pspMinBufferWidth(bits), chain[0].width), chain[0].height, bits);
+
+    if (swizzled) {
+        *swizzled = swizzle;
+    }
+
+    for (size_t level = 0; level < chain.size(); ++level) {
+        const PspLevel& source = chain[level];
+        std::string name = level == 0 ? baseName : baseName + "_mip" + std::to_string(level);
+        int bufferWidth = std::max(pspMinBufferWidth(bits), source.width);
+
+        if (swizzle && !pspCanSwizzle(bufferWidth, source.height, bits)) {
+            break;
+        }
+
+        std::vector<uint32_t> texels(source.pixels.size());
+
+        for (size_t i = 0; i < texels.size(); ++i) {
+            texels[i] = texelOf(source.pixels[i]);
+        }
+
+        result.push_back(writePspLevel(texels, source.width, source.height, bufferWidth, bits, swizzle, name, location, this));
+    }
+
+    return result;
 }
 
 std::unique_ptr<FileDefinition> TextureDefinition::GenerateDefinition(const std::string& name, const std::string& location) const {

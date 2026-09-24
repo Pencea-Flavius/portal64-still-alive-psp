@@ -10,11 +10,7 @@
 #include "scene.h"
 #include "util/frame_time.h"
 
-#include "codegen/assets/models/grav_flare.h"
-#include "codegen/assets/models/fleck_ash2.h"
 #include "codegen/assets/materials/static.h"
-
-#define BALL_RADIUS 0.1f
 
 static struct CollisionBox sBallCollisionBox = {
     {BALL_RADIUS, BALL_RADIUS, BALL_RADIUS}
@@ -61,33 +57,6 @@ void ballBurnFilterOnPortal(int portalIndex) {
             burnMark->dynamicId = INVALID_DYNAMIC_OBJECT;
         }
     }
-}
-
-static void ballRender(void* data, struct RenderScene* renderScene, struct Transform* fromView) {
-    struct Ball* ball = (struct Ball*)data;
-    struct Transform transform;
-    transform.position = ball->rigidBody.transform.position;
-    transform.rotation = fromView->rotation;
-    vector3Scale(&gOneVec, &transform.scale, BALL_RADIUS);
-
-    Mtx* mtx = renderStateRequestMatrices(renderScene->renderState, 1);
-
-    transformToMatrixL(&transform, mtx, SCENE_SCALE);
-
-    renderSceneAdd(renderScene, grav_flare_model_gfx, mtx, GRAV_FLARE_INDEX, &ball->rigidBody.transform.position, NULL);
-}
-
-void ballBurnRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
-    struct BallBurnMark* burn = (struct BallBurnMark*)data;
-
-    dynamicRenderListAddData(
-        renderList,
-        fleck_ash2_model_gfx,
-        &burn->matrix,
-        FLECK_ASH2_INDEX,
-        &burn->at,
-        NULL
-    );
 }
 
 void ballInitInactive(struct Ball* ball) {
@@ -207,7 +176,7 @@ void ballCheckBounced(struct Ball* ball) {
     }
     burnTransform.scale = gOneVec;
 
-    transformToMatrixL(&burnTransform, &burn->matrix, SCENE_SCALE);
+    renderMatrixFromTransform(&burn->matrix, &burnTransform, SCENE_SCALE);
 
     burn->at = burnTransform.position;
     burn->normal = normal;

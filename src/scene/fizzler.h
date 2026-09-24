@@ -1,6 +1,9 @@
 #ifndef __FIZZLER_H__
 #define __FIZZLER_H__
 
+#include "graphics/render_types.h"
+#include "graphics/renderstate.h"
+
 #include <ultra64.h>
 
 #include "math/transform.h"
@@ -20,8 +23,8 @@ struct Fizzler {
     struct RigidBody rigidBody;
     struct ColliderTypeData colliderType;
     struct CollisionBox collisionBox;
-    Vtx* modelVertices;
-    Gfx* modelGraphics;
+    RenderVertices modelVertices;
+    ModelHandle modelGraphics;
     short particleCount;
     short maxExtent;
     short maxVerticalExtent;
@@ -32,5 +35,9 @@ struct Fizzler {
 
 void fizzlerInit(struct Fizzler* fizzler, struct Transform* transform, float width, float height, int room, short cubeSignalIndex);
 void fizzlerUpdate(struct Fizzler* fizzler);
+
+// The particles are built and moved per machine; the build puts one of the
+// two on the path.
+#include "fizzler_particles.h"
 
 #endif

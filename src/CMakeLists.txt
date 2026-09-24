@@ -28,16 +28,9 @@ target_sources(engine INTERFACE
     effects/effects.c
     effects/particle_effect.c
     effects/portal_trail.c
-    font/dejavu_sans_images.c
     font/font.c
-    font/liberation_mono_images.c
     graphics/color.c
-    graphics/debug_render.c
-    graphics/graphics.c
-    graphics/image.c
-    graphics/initgfx.c
     graphics/render_scene.c
-    graphics/renderstate.c
     graphics/screen_clipper.c
     levels/credits.c
     levels/cutscene_runner.c
@@ -46,11 +39,6 @@ target_sources(engine INTERFACE
     levels/material_state.c
     levels/static_render.c
     locales/locales.c
-    main.c
-    materials/light.c
-    materials/point_light_rendered.c
-    materials/shadow_caster.c
-    materials/subject.c
     math/basis.c
     math/box2d.c
     math/box3d.c
@@ -96,7 +84,6 @@ target_sources(engine INTERFACE
     physics/collision_tetrahedron.c
     physics/contact_insertion.c
     physics/contact_solver.c
-    physics/debug_renderer.c
     physics/epa.c
     physics/gjk.c
     physics/line.c
@@ -137,13 +124,10 @@ target_sources(engine INTERFACE
     scene/portal_render.c
     scene/portal_surface.c
     scene/portal_surface_generator.c
-    scene/portal_surface_gfx.c
     scene/render_plan.c
     scene/scene.c
     scene/scene_animator.c
     scene/security_camera.c
-    scene/shadow_map.c
-    scene/shadow_renderer.c
     scene/signage.c
     scene/signals.c
     scene/switch.c
@@ -152,8 +136,6 @@ target_sources(engine INTERFACE
     sk64/skeletool_animator.c
     sk64/skeletool_armature.c
     strings/translations.c
-    util/assert.c
-    util/dynamic_asset_loader.c
     util/frame_time.c
     util/memory.c
     util/profile.c
@@ -182,36 +164,62 @@ if (GFX_VALIDATOR)
     )
 endif()
 
-#########################
-## Version information ##
-#########################
-
-set(GEN_VERSION_HEADER "${PROJECT_SOURCE_DIR}/cmake/GenVersionHeader.cmake")
-set(VERSION_H          "${GENERATED_CODE_DIR}/version.h")
-
-add_custom_target(version_header
-    DEPENDS
-        ${GEN_VERSION_HEADER}
-    BYPRODUCTS
-        ${VERSION_H}
-    COMMAND
-        ${CMAKE_COMMAND}
-        -D Git_EXECUTABLE=${Git_EXECUTABLE}
-        -D OUTPUT_FILE=${VERSION_H}
-        -P ${GEN_VERSION_HEADER}
-    WORKING_DIRECTORY
-        ${PROJECT_SOURCE_DIR}
-    VERBATIM
-)
-
-# Make sure version header is always up to date
+# The version header, for either machine.
 add_dependencies(engine version_header)
 
 ###########################
 ## Library-specific code ##
 ###########################
 
+# One of these two lists: each file is half of an n64/psp pair.
+
+if (N64)
+
 target_sources(engine INTERFACE
+    decor/n64/decor_render.c
+    effects/n64/particle_effect_render.c
+    effects/n64/portal_trail_render.c
+    font/n64/font_images.c
+    font/n64/font_render.c
+    graphics/n64/graphics.c
+    graphics/n64/image.c
+    graphics/n64/initgfx.c
+    graphics/n64/render_scene_generate.c
+    levels/n64/credits_render.c
+    levels/n64/intro_render.c
+    levels/n64/level_materials.c
+    graphics/n64/render_state.c
+    physics/n64/debug_renderer.c
+    menu/n64/confirmation_dialog_render.c
+    menu/n64/controls_render.c
+    menu/n64/landing_menu_render.c
+    menu/n64/main_menu_render.c
+    menu/n64/menu_builder_render.c
+    menu/n64/menu_render.c
+    menu/n64/new_game_menu_render.c
+    menu/n64/options_menu_render.c
+    menu/n64/savefile_list_render.c
+    scene/n64/ball_render.c
+    scene/n64/camera_render.c
+    scene/n64/clock_digits.c
+    scene/n64/debug_scene_render.c
+    scene/n64/doorway_cover_render.c
+    scene/n64/fizzler_particles.c
+    scene/n64/pedestal_render.c
+    scene/n64/hud_render.c
+    scene/n64/laser_render.c
+    scene/n64/point_light_render.c
+    scene/n64/portal_cover_render.c
+    scene/n64/portal_gun_render.c
+    scene/n64/portal_surface_gfx.c
+    scene/n64/turret_render.c
+    scene/n64/render_plan_execute.c
+    scene/n64/scene_render.c
+    scene/n64/signage_render.c
+    scene/n64/scene_animator_transforms.c
+    sk64/n64/skeletool_animation_data.c
+    sk64/n64/skeletool_render.c
+
     system/libultra/audio_libultra.c
     system/libultra/boot_libultra.c
     system/libultra/cartridge_libultra.c
@@ -219,7 +227,99 @@ target_sources(engine INTERFACE
     system/libultra/display_libultra.c
     system/libultra/rsp_scheduler_libultra.c
     system/libultra/time_libultra.c
+
+    # Unused upstream libultra rendering, kept building on the N64 only.
+    graphics/debug_render.c
+    materials/light.c
+    materials/point_light_rendered.c
+    materials/shadow_caster.c
+    materials/subject.c
+    scene/shadow_map.c
+    scene/shadow_renderer.c
+
+    levels/n64/level_load.c
+    strings/n64/translations_load.c
+    main.c
+    player/n64/player_render.c
+    util/n64/assert.c
+    util/n64/dynamic_asset_loader.c
 )
+
+else()
+
+target_sources(engine INTERFACE
+    decor/psp/decor_render.c
+    effects/psp/particle_effect_render.c
+    effects/psp/portal_trail_render.c
+    font/psp/font_images.c
+    font/psp/font_render.c
+    graphics/psp/graphics.c
+    graphics/psp/psp_image.c
+    graphics/psp/psp_model_render.c
+    graphics/psp/psp_render.c
+    graphics/psp/render_scene_generate.c
+    graphics/psp/render_state.c
+    levels/psp/credits_render.c
+    levels/psp/intro_render.c
+    levels/psp/level_materials.c
+    menu/psp/confirmation_dialog_render.c
+    menu/psp/controls_render.c
+    menu/psp/landing_menu_render.c
+    menu/psp/main_menu_render.c
+    menu/psp/menu_builder_render.c
+    menu/psp/menu_render.c
+    menu/psp/new_game_menu_render.c
+    menu/psp/options_menu_render.c
+    menu/psp/savefile_list_render.c
+    physics/psp/debug_renderer.c
+    scene/psp/ball_render.c
+    scene/psp/camera_render.c
+    scene/psp/clock_digits.c
+    scene/psp/debug_scene_render.c
+    scene/psp/doorway_cover_render.c
+    scene/psp/fizzler_particles.c
+    scene/psp/hud_render.c
+    scene/psp/laser_render.c
+    scene/psp/pedestal_render.c
+    scene/psp/portal_cover_render.c
+    scene/psp/portal_gun_render.c
+    scene/psp/portal_surface_gfx.c
+    scene/psp/render_plan_execute.c
+    scene/psp/scene_animator_transforms.c
+    scene/psp/scene_render.c
+    scene/psp/signage_render.c
+    scene/psp/turret_render.c
+    sk64/psp/skeletool_animation_data.c
+    sk64/psp/skeletool_render.c
+
+    system/psp/audio_me.c
+    system/psp/audio_psp.c
+    system/psp/psp_profile.c
+    system/psp/boot_psp.c
+    system/psp/cartridge_psp.c
+    system/psp/controller_psp.c
+    system/psp/display_psp.c
+    system/psp/time_psp.c
+
+    system/psp/ultra64/os_message_psp.c
+    system/psp/ultra64/os_thread_psp.c
+    system/psp/ultra64/os_time_psp.c
+
+    levels/psp/level_load.c
+    strings/psp/translations_load.c
+    system/psp/main_psp.c
+    player/psp/player_render.c
+    util/psp/assert.c
+    util/psp/dynamic_asset_loader.c
+)
+
+target_include_directories(engine INTERFACE
+    # PSP only: makes <ultra64.h> resolve.
+    "${CMAKE_CURRENT_SOURCE_DIR}/system/psp/ultra64"
+    "${CMAKE_CURRENT_SOURCE_DIR}/system/psp"
+)
+
+endif()
 
 if (RSP_PROFILER)
     if (NOT DEBUGGER)

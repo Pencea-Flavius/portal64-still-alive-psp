@@ -7,8 +7,6 @@
 #include "system/cartridge.h"
 #include "util/memory.h"
 
-extern char _animation_segmentSegmentRomStart[];
-
 void skAnimatorInit(struct SKAnimator* animator, int nBones) {
     animator->currentClip = NULL;
     animator->currentTime = 0.0f;
@@ -54,9 +52,8 @@ void skAnimatorRequestFrame(struct SKAnimator* animator, int nextFrame) {
 
     int frameSize = currentClip->nBones * sizeof(struct SKAnimationBoneFrame);
 
-    uint32_t address = (uint32_t)currentClip->frames + frameSize * nextFrame;
     romCopyAsync(
-        CALC_SEGMENT_POINTER(address, _animation_segmentSegmentRomStart),
+        skAnimationFrameAt(currentClip, frameSize, nextFrame),
         animator->boneState[animator->nextFrameStateIndex],
         sizeof(struct SKAnimationBoneFrame) * boneCount
     );

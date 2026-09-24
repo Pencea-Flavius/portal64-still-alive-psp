@@ -4,6 +4,7 @@
 #include <ultra64.h>
 
 #include "audio/soundplayer.h"
+#include "graphics/render_types.h"
 #include "graphics/renderstate.h"
 #include "math/transform.h"
 #include "physics/collision_object.h"
@@ -52,7 +53,11 @@ enum FizzleCheckResult {
     FizzleCheckResultEnd,
 };
 
-Gfx* decorBuildFizzleGfx(Gfx* gfxToRender, float fizzleTime, struct RenderState* renderState);
+struct DynamicRenderDataList;
+
+// Both draw; each machine has a half in src/decor/n64/ and src/decor/psp/.
+ModelHandle decorBuildFizzleGfx(ModelHandle gfxToRender, float fizzleTime, struct RenderState* renderState);
+void decorObjectRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState);
 enum FizzleCheckResult decorObjectUpdateFizzler(struct CollisionObject* collisionObject, float* fizzleTime);
 
 #endif

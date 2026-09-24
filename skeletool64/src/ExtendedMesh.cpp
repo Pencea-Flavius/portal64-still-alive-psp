@@ -279,13 +279,25 @@ std::shared_ptr<ExtendedMesh> ExtendedMesh::Transform(const aiMatrix4x4& transfo
 }
 
 template <typename T>
-T* joinVector3DArrays(T* a, size_t aCount, T* b, size_t bCount) {
+T* joinVector3DArrays(T* a, size_t aCount, T* b, size_t bCount, const T& missing = T()) {
+    // Neither mesh has the channel: nor does the joined one. Allocated anyway,
+    // it read as a channel of zeros -- vertex colours of transparent black,
+    // which the PSP takes its vertex alpha from, so a joined surface faded
+    // entirely to its primitive colour.
+    if (!a && !b) {
+        return nullptr;
+    }
+
     T* result = new T[aCount + bCount];
     if (a) {
         std::copy(a, a + aCount, result);
+    } else {
+        std::fill(result, result + aCount, missing);
     }
     if (b) {
         std::copy(b, b + bCount, result + aCount);
+    } else {
+        std::fill(result + aCount, result + aCount + bCount, missing);
     }
     return result;
 }
@@ -311,12 +323,12 @@ std::shared_ptr<ExtendedMesh> ExtendedMesh::Join(std::shared_ptr<ExtendedMesh>& 
     result->mBitangents = joinVector3DArrays(mMesh->mBitangents, mMesh->mNumVertices, other->mMesh->mBitangents, other->mMesh->mNumVertices);
 
     for (int i = 0; i < AI_MAX_NUMBER_OF_COLOR_SETS; ++i) {
-        result->mColors[i] = joinVector3DArrays(mMesh->mColors[i], mMesh->mNumVertices, other->mMesh->mColors[i], other->mMesh->mNumVertices);
+        result->mColors[i] = joinVector3DArrays(mMesh->mColors[i], mMesh->mNumVertices, other->mMesh->mColors[i], other->mMesh->mNumVertices, aiColor4D(1.0f, 1.0f, 1.0f, 1.0f));
     }
 
     for (int i = 0; i < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++i) {
         result->mTextureCoords[i] = joinVector3DArrays(mMesh->mTextureCoords[i], mMesh->mNumVertices, other->mMesh->mTextureCoords[i], other->mMesh->mNumVertices);
-        result->mNumUVComponents[i] = mMesh->mNumUVComponents[i];
+        result->mNumUVComponents[i] = mMesh->mTextureCoords[i] ? mMesh->mNumUVComponents[i] : other->mMesh->mNumUVComponents[i];
     }
 
     result->mNumFaces = mMesh->mNumFaces + other->mMesh->mNumFaces;

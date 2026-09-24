@@ -1,7 +1,7 @@
 #include "audio/soundplayer.h"
 #include "controls/controller_actions.h"
 #include "controls/rumble_pak_clip.h"
-#include "graphics/graphics.h"
+#include "graphics.h"
 #include "levels/credits.h"
 #include "levels/intro.h"
 #include "levels/levels.h"

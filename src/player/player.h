@@ -58,10 +58,16 @@ struct Player {
 void playerInit(struct Player* player, struct Location* startLocation, struct Vector3* velocity);
 void playerUpdateFooting(struct Player* player, float maxStandDistance);
 void playerUpdate(struct Player* player);
+// How high above what it stands on the head is held: lower crouched.
+float playerStandHeight(struct Player* player);
 
 void playerApplyCameraTransform(struct Player* player, struct Transform* cameraTransform);
 void playerGetTargetCenter(struct Player* player, struct Vector3* out);
 void playerGetMoveBasis(struct Quaternion* rotation, struct Vector3* forward, struct Vector3* right);
+
+// Drawing is split per machine; the build picks which .c defines this.
+struct DynamicRenderDataList;
+void playerRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState);
 void playerSetLocation(struct Player* player, struct Location* location);
 
 void playerDamage(struct Player* player, float amount, struct Coloru8* overlayColor);

@@ -15,7 +15,10 @@ DisplayListSettings::DisplayListSettings():
     mExportAnimation(true),
     mExportGeometry(true),
     mIncludeCulling(true),
-    mTargetCIBuffer(false) {
+    mTargetCIBuffer(false),
+    mTargetPsp(false),
+    mPspPartMaterialFromScene(false),
+    mPspDefaultMaterialFromScene(false) {
 }
 
 aiMatrix4x4 DisplayListSettings::CreateGlobalTransform() const {

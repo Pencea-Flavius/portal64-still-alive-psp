@@ -60,19 +60,15 @@ static void doorRender(void* data, struct DynamicRenderDataList* renderList, str
     struct Door* door = (struct Door*)data;
     struct DoorTypeDefinition* typeDefinition = &sDoorTypeDefinitions[door->doorDefinition->doorType];
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &door->doorDefinition->transform, SCENE_SCALE);
     if (!matrix) {
         return;
     }
 
-    transformToMatrixL(&door->doorDefinition->transform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, door->armature.numberOfBones);
+    RenderMatrices armature = skArmatureBuildTransforms(&door->armature, renderState);
     if (!armature) {
         return;
     }
-
-    skCalculateTransforms(&door->armature, armature);
 
     dynamicRenderListAddData(renderList, door->armature.displayList, matrix, typeDefinition->materialIndex, &door->rigidBody.transform.position, armature);
 }

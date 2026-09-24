@@ -1,0 +1,10 @@
+materials:
+  cube:
+    gDPSetTile:
+      filename: "test_cube.png"
+      fmt: G_IM_FMT_RGBA
+      siz: G_IM_SIZ_16b
+    gDPSetRenderMode: G_RM_ZB_OPA_SURF
+    gDPSetCombineMode:
+      color: ["0", "0", "0", "TEXEL0"]
+      alpha: ["0", "0", "0", "TEXEL0"]

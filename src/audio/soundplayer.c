@@ -1,4 +1,5 @@
 #include "soundplayer.h"
+#include <stddef.h>
 
 #include "clips.h"
 #include "math/mathf.h"

@@ -343,7 +343,7 @@ union SimplexTriangleIndexData gInitialSimplexIndexData[] = {
 };
 
 void expandingSimplexInit(struct ExpandingSimplex* expandingSimplex, struct Simplex* simplex, int flags) {
-    __assert(simplex->nPoints == 4);
+    portalAssert(simplex->nPoints == 4);
 
     expandingSimplex->triangleCount = 0;
     expandingSimplex->pointCount = 0;

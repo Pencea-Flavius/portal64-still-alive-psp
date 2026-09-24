@@ -1,6 +1,8 @@
 #ifndef __DYNAMIC_ASSET_LOADER_H__
 #define __DYNAMIC_ASSET_LOADER_H__
 
+#include "graphics/render_types.h"
+
 #include <ultra64.h>
 
 #include "dynamic_asset_model.h"
@@ -16,7 +18,7 @@ struct SKArmatureWithAnimations {
 void dynamicAssetsReset();
 
 void dynamicAssetModelPreload(int index);
-Gfx* dynamicAssetModel(int index);
+ModelHandle dynamicAssetModel(int index);
 
 void* dynamicAssetFixPointer(int index, void* ptr);
 

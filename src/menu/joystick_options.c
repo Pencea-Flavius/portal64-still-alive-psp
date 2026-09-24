@@ -1,15 +1,17 @@
 #include "joystick_options.h"
 
 #include "audio/soundplayer.h"
+#include "controls/controller_actions.h"
 #include "font/dejavu_sans.h"
 #include "savefile/savefile.h"
 #include "system/controller.h"
 #include "system/display.h"
+#include "menu.h"
 
 #include "codegen/assets/audio/clips.h"
 #include "codegen/assets/materials/ui.h"
 
-#define MENU_Y      54
+#define MENU_Y      OPTIONS_PAGE_TOP
 #define MENU_WIDTH  252
 #define MENU_HEIGHT 124
 #define MENU_X      ((SCREEN_WD - MENU_WIDTH) / 2)
@@ -137,6 +139,13 @@ void joystickOptionsAction(void* data, int selection, struct MenuAction* action)
             } else {
                 gSaveData.controls.flags &= ~ControlSaveFlagsTankControls;
             }
+#ifdef PSP
+            if (action->state.checkbox.isChecked) {
+                controllerActionSetTankSources();
+            } else {
+                controllerActionSetDefaultSources();
+            }
+#endif
             break;
         case JoystickOptionSensitivity:
             gSaveData.controls.sensitivity = (short)(action->state.fSlider.value * 0xFFFF + 0.5f);

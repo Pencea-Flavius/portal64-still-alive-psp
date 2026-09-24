@@ -3,6 +3,7 @@
 
 #include <ultra64.h>
 
+#include "graphics/render_types.h"
 #include "graphics/renderstate.h"
 #include "math/boxs16.h"
 #include "math/quaternion.h"
@@ -35,7 +36,7 @@ struct FrustumCullingInformation {
 };
 
 struct CameraMatrixInfo {
-    Mtx* projectionView;
+    RenderMatrices projectionView;
     u16 perspectiveNormalize;
     struct FrustumCullingInformation cullingInformation;
 };
@@ -55,13 +56,17 @@ int isQuadOutsideFrustum(struct FrustumCullingInformation* frustum, struct Colli
 void cameraInit(struct Camera* camera, float fov, float near, float far);
 void cameraBuildViewMatrix(struct Camera* camera, float matrix[4][4]);
 void cameraBuildProjectionMatrix(struct Camera* camera, float matrix[4][4], u16* perspectiveNorm, float aspectRatio);
-int cameraSetupMatrices(struct Camera* camera, struct RenderState* renderState, float aspectRatio, Vp* viewport, int extractClippingPlanes, struct CameraMatrixInfo* output);
-void cameraModifyProjectionViewForPortalGun(struct Camera* camera, struct RenderState* renderState, float newNearPlane, float aspectRatio);
-
-int cameraApplyMatrices(struct RenderState* renderState, struct CameraMatrixInfo* matrixInfo);
-
 float cameraClipDistance(struct Camera* camera, float distance);
 
+// Both are plain float maths on a matrix the caller already has, and the half
+// that hands the matrices to the renderer needs them.
+void cameraExtractClippingPlane(float viewPersp[4][4], struct Plane* output, int axis, float direction);
+int cameraIsValidMatrix(float matrix[4][4]);
+
 int fogIntValue(float floatValue);
+
+// Handing the matrices to the renderer is the platform's, and the build puts
+// one half of it on the include path.
+#include "camera_render.h"
 
 #endif

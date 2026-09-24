@@ -3,13 +3,14 @@
 
 #include <ultra64.h>
 
+#include "graphics/render_types.h"
 #include "graphics/renderstate.h"
 #include "math/transform.h"
 
 #define NO_BONE_PARENT      0xFFFF
 
 struct SKArmatureDefinition {
-    Gfx* displayList;
+    ModelHandle displayList;
     struct Transform* pose;
     unsigned short* boneParentIndex;
     u16 numberOfBones;
@@ -17,7 +18,7 @@ struct SKArmatureDefinition {
 };
 
 struct SKArmature {
-    Gfx* displayList;
+    ModelHandle displayList;
     struct Transform* pose;
     unsigned short* boneParentIndex;
     u16 numberOfBones;
@@ -27,11 +28,12 @@ struct SKArmature {
 void skArmatureInit(struct SKArmature* object, struct SKArmatureDefinition* definition);
 void skArmatureInitWithPose(struct SKArmature* object, struct SKArmatureDefinition* definition, struct Transform* usePose);
 void skArmatureGetCenter(struct SKArmature* object, struct Vector3* out);
-Gfx* skBuildAttachments(struct SKArmature* object, Gfx** attachments, struct RenderState* renderState);
-void skRenderObject(struct SKArmature* object, Gfx** attachements, struct RenderState* intoState);
-void skCalculateTransforms(struct SKArmature* object, Mtx* into);
 void skCleanupObject(struct SKArmature* object);
 void skCalculateBonePosition(struct SKArmature* object, unsigned short boneIndex, struct Vector3* bonePosition, struct Vector3* out);
 void skCalculateBoneRotation(struct SKArmature* object, unsigned short boneIndex, struct Quaternion* out);
+
+// Everything that draws is declared in the platform's half, which the build
+// puts on the include path.
+#include "skeletool_render.h"
 
 #endif

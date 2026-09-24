@@ -1,7 +1,6 @@
 #include "portal.h"
 
 #include "dynamic_scene.h"
-#include "graphics/graphics.h"
 #include "graphics/screen_clipper.h"
 #include "levels/levels.h"
 #include "math/mathf.h"

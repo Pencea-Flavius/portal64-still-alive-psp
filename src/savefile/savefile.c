@@ -14,8 +14,11 @@
 #define NO_TEST_CHAMBER                     0xFF
 #define TEST_SUBJECT_MAX                    99
 
-#define SAVE_SLOT_IMAGE_SCALE_FACTOR        (int)((SCREEN_WD << 16) / SAVE_SLOT_IMAGE_W)
-#define SCALE_SAVE_SLOT_IMAGE_COORD(value)  ((SAVE_SLOT_IMAGE_SCALE_FACTOR * (value)) >> 16)
+// One scale per axis: the PSP's screen is not 4:3 like the thumbnail.
+#define SAVE_SLOT_IMAGE_SCALE_X             (int)((SCREEN_WD << 16) / SAVE_SLOT_IMAGE_W)
+#define SAVE_SLOT_IMAGE_SCALE_Y             (int)((SCREEN_HT << 16) / SAVE_SLOT_IMAGE_H)
+#define SCALE_SAVE_SLOT_IMAGE_X(value)      ((SAVE_SLOT_IMAGE_SCALE_X * (value)) >> 16)
+#define SCALE_SAVE_SLOT_IMAGE_Y(value)      ((SAVE_SLOT_IMAGE_SCALE_Y * (value)) >> 16)
 
 struct SaveData __attribute__((aligned(8))) gSaveData;
 uint8_t gCurrentTestSubject = 0;
@@ -58,6 +61,18 @@ void savefileLoad() {
     if (gSaveData.header.magic != SAVEFILE_MAGIC) {
         savefileNew();
     }
+
+#ifdef PSP
+    // Saves from before the face buttons became the C group take the PSP
+    // layout whole, or A/B bindings would also fire from C buttons.
+    for (int controller = 0; controller < MAX_BINDABLE_CONTROLLERS; ++controller) {
+        if (gSaveData.controls.controllerBindings[controller][ControllerActionInputAButton].action != ControllerActionNone ||
+            gSaveData.controls.controllerBindings[controller][ControllerActionInputBButton].action != ControllerActionNone) {
+            controllerActionSetDefaultSources();
+            break;
+        }
+    }
+#endif
 
     controllerActionSetDeadzone(gSaveData.controls.deadzone * (1.0f / 0xFFFF));
 }
@@ -232,10 +247,10 @@ void savefileUpdateSlotImage() {
 
     for (int y = 0; y < SAVE_SLOT_IMAGE_H; ++y) {
         for (int x = 0; x < SAVE_SLOT_IMAGE_W; ++x) {
-            int srcX = SCALE_SAVE_SLOT_IMAGE_COORD(x);
-            int srcY = SCALE_SAVE_SLOT_IMAGE_COORD(y);
+            int srcX = SCALE_SAVE_SLOT_IMAGE_X(x);
+            int srcY = SCALE_SAVE_SLOT_IMAGE_Y(y);
 
-            *dst = cfb[srcX + (srcY * SCREEN_WD)];
+            *dst = cfb[srcX + (srcY * SCREEN_STRIDE)];
 
             ++dst;
         }

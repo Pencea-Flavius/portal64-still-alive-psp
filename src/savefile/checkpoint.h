@@ -1,7 +1,9 @@
 #ifndef __SAVEFILE_CHECKPOINT_H__
 #define __SAVEFILE_CHECKPOINT_H__
 
-#include "scene/scene.h"
+// Only the tag is needed here. Including scene/scene.h pulled the whole scene
+// graph into every menu that saves a setting.
+struct Scene;
 
 #define MAX_CHECKPOINT_SIZE 2048
 

@@ -32,21 +32,18 @@ static struct ColliderTypeData sIncineratorColliderType = {
 static void incineratorRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct Incinerator* incinerator = (struct Incinerator*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    struct Transform transform = incinerator->rigidBody.transform;
+    vector3Scale(&transform.scale, &transform.scale, SCENE_SCALE / INCINERATOR_SCALE);
+
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &transform, SCENE_SCALE);
     if (!matrix) {
         return;
     }
 
-    struct Transform transform = incinerator->rigidBody.transform;
-    vector3Scale(&transform.scale, &transform.scale, SCENE_SCALE / INCINERATOR_SCALE);
-    transformToMatrixL(&transform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, incinerator->armature.numberOfBones);
+    RenderMatrices armature = skArmatureBuildTransforms(&incinerator->armature, renderState);
     if (!armature) {
         return;
     }
-
-    skCalculateTransforms(&incinerator->armature, armature);
 
     dynamicRenderListAddData(
         renderList,

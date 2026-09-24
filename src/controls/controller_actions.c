@@ -27,6 +27,31 @@ struct Vector2 sDirections[2];  // 0 = move, 1 = rotate
 static short sDeadzone = DEFAULT_DEADZONE_SIZE;
 static float sDeadzoneScale = 1.0f / (MAX_JOYSTICK_RANGE - DEFAULT_DEADZONE_SIZE);
 
+#ifdef PSP
+// PSP layout (buttons as src/system/psp/controller_psp.c maps them): nub
+// moves, face buttons look, shoulders fire, D-pad does the rest.
+static uint8_t sDefaultControllerBindings[ControllerActionInputCount] = {
+    [ControllerActionInputAButton]         = ControllerActionNone,
+    [ControllerActionInputBButton]         = ControllerActionNone,
+    [ControllerActionInputStartButton]     = ControllerActionPause,
+
+    [ControllerActionInputCUpButton]       = ControllerActionRotate,
+    [ControllerActionInputCRightButton]    = ControllerActionNone,
+    [ControllerActionInputCDownButton]     = ControllerActionNone,
+    [ControllerActionInputCLeftButton]     = ControllerActionNone,
+
+    [ControllerActionInputDUpButton]       = ControllerActionJump,
+    [ControllerActionInputDRightButton]    = ControllerActionUseItem,
+    [ControllerActionInputDDownButton]     = ControllerActionDuck,
+    [ControllerActionInputDLeftButton]     = ControllerActionZoom,
+
+    [ControllerActionInputZTrig]           = ControllerActionLookBackward,
+    [ControllerActionInputRTrig]           = ControllerActionOpenPortal0,
+    [ControllerActionInputLTrig]           = ControllerActionOpenPortal1,
+
+    [ControllerActionInputJoystick]        = ControllerActionMove,
+};
+#else
 static uint8_t sDefaultControllerBindings[ControllerActionInputCount] = {
     [ControllerActionInputAButton]         = ControllerActionOpenPortal0,
     [ControllerActionInputBButton]         = ControllerActionOpenPortal1,
@@ -48,6 +73,32 @@ static uint8_t sDefaultControllerBindings[ControllerActionInputCount] = {
 
     [ControllerActionInputJoystick]        = ControllerActionRotate,
 };
+#endif
+
+#ifdef PSP
+// PSP tank layout: nub looks, triangle/cross walk, circle/square use and jump.
+static uint8_t sTankControllerBindings[ControllerActionInputCount] = {
+    [ControllerActionInputAButton]         = ControllerActionNone,
+    [ControllerActionInputBButton]         = ControllerActionNone,
+    [ControllerActionInputStartButton]     = ControllerActionPause,
+
+    [ControllerActionInputCUpButton]       = ControllerActionMove,
+    [ControllerActionInputCRightButton]    = ControllerActionUseItem,
+    [ControllerActionInputCDownButton]     = ControllerActionNone,
+    [ControllerActionInputCLeftButton]     = ControllerActionJump,
+
+    [ControllerActionInputDUpButton]       = ControllerActionJump,
+    [ControllerActionInputDRightButton]    = ControllerActionUseItem,
+    [ControllerActionInputDDownButton]     = ControllerActionDuck,
+    [ControllerActionInputDLeftButton]     = ControllerActionZoom,
+
+    [ControllerActionInputZTrig]           = ControllerActionLookBackward,
+    [ControllerActionInputRTrig]           = ControllerActionOpenPortal0,
+    [ControllerActionInputLTrig]           = ControllerActionOpenPortal1,
+
+    [ControllerActionInputJoystick]        = ControllerActionRotate,
+};
+#endif
 
 static enum ControllerButtons sActionInputButtonMask[ControllerActionInputCount] = {
     [ControllerActionInputAButton]         = ControllerButtonA,
@@ -115,12 +166,24 @@ static void controllerActionReadDirection(struct Vector2* direction, int control
             if (controllerGetButtons(controllerIndex, ControllerButtonCDown)) {
                 direction->y -= 1.0f;
             }
+#ifdef PSP
+            // A face button with its own action is not part of the group's direction.
+            if (gSaveData.controls.controllerBindings[controllerIndex][ControllerActionInputCRightButton].action == ControllerActionNone &&
+                controllerGetButtons(controllerIndex, ControllerButtonCRight)) {
+                direction->x += 1.0f;
+            }
+            if (gSaveData.controls.controllerBindings[controllerIndex][ControllerActionInputCLeftButton].action == ControllerActionNone &&
+                controllerGetButtons(controllerIndex, ControllerButtonCLeft)) {
+                direction->x -= 1.0f;
+            }
+#else
             if (controllerGetButtons(controllerIndex, ControllerButtonCRight)) {
                 direction->x += 1.0f;
             }
             if (controllerGetButtons(controllerIndex, ControllerButtonCLeft)) {
                 direction->x -= 1.0f;
             }
+#endif
             break;
         case ControllerActionInputDUpButton:
             if (controllerGetButtons(controllerIndex, ControllerButtonUp)) {
@@ -153,7 +216,27 @@ static void controllerActionApply(enum ControllerAction action) {
     sActiveActions |= INDEX_TO_BITMASK(action);
 }
 
+// Old saves hold the default bindings as raw bytes, which read as nearly
+// nothing bound on the PSP (bitfield order differs); rewrite them.
+static void controllerActionRepairRawDefaults() {
+    uint8_t* raw = (uint8_t*)gSaveData.controls.controllerBindings[0];
+
+    for (int input = 0; input < ControllerActionInputCount; ++input) {
+        if (raw[input] != sDefaultControllerBindings[input]) {
+            return;
+        }
+    }
+
+    for (int input = 0; input < ControllerActionInputCount; ++input) {
+        if (gSaveData.controls.controllerBindings[0][input].action != sDefaultControllerBindings[input]) {
+            controllerActionSetDefaultSources();
+            return;
+        }
+    }
+}
+
 void controllerActionInit() {
+    controllerActionRepairRawDefaults();
     updateBoundControllers();
 }
 
@@ -243,6 +326,13 @@ int controllerActionSources(enum ControllerAction action, struct ControllerActio
 int controllerActionReadAnySource(struct ControllerActionSource* source) {
     for (source->controllerIndex = 0; source->controllerIndex < MAX_BINDABLE_CONTROLLERS; ++source->controllerIndex) {
         for (source->input = 0; source->input < ControllerActionInputCount; ++source->input) {
+#ifdef PSP
+            // Cross and circle are C buttons too.
+            if (source->input == ControllerActionInputAButton || source->input == ControllerActionInputBButton) {
+                continue;
+            }
+#endif
+
             if (source->input == ControllerActionInputJoystick) {
                 struct ControllerStick padStick;
                 controllerGetStick(source->controllerIndex, &padStick);
@@ -356,10 +446,29 @@ int controllerActionSetSource(enum ControllerAction action, struct ControllerAct
 
 void controllerActionSetDefaultSources() {
     zeroMemory(gSaveData.controls.controllerBindings, sizeof(gSaveData.controls.controllerBindings));
-    memCopy(gSaveData.controls.controllerBindings[0], sDefaultControllerBindings, sizeof(sDefaultControllerBindings));
+
+    // Field by field: bitfield order is the compiler's, and differs between the
+    // big endian N64 and the little endian PSP.
+    for (int input = 0; input < ControllerActionInputCount; ++input) {
+        gSaveData.controls.controllerBindings[0][input].action = sDefaultControllerBindings[input];
+        gSaveData.controls.controllerBindings[0][input].sortOrder = 0;
+    }
 
     updateBoundControllers();
 }
+
+#ifdef PSP
+void controllerActionSetTankSources() {
+    zeroMemory(gSaveData.controls.controllerBindings, sizeof(gSaveData.controls.controllerBindings));
+
+    for (int input = 0; input < ControllerActionInputCount; ++input) {
+        gSaveData.controls.controllerBindings[0][input].action = sTankControllerBindings[input];
+        gSaveData.controls.controllerBindings[0][input].sortOrder = 0;
+    }
+
+    updateBoundControllers();
+}
+#endif
 
 int controllerActionUsedControllerCount() {
     int count = 0;

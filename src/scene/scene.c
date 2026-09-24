@@ -8,15 +8,10 @@
 #include "decor/decor_object_list.h"
 #include "dynamic_scene.h"
 #include "effects/effect_definitions.h"
-#include "graphics/graphics.h"
 #include "hud.h"
 #include "levels/cutscene_runner.h"
 #include "levels/levels.h"
 #include "levels/static_render.h"
-#include "materials/shadow_caster.h"
-#include "materials/subject.h"
-#include "materials/light.h"
-#include "materials/point_light_rendered.h"
 #include "math/mathf.h"
 #include "menu/game_menu.h"
 #include "physics/collision_scene.h"
@@ -25,7 +20,6 @@
 #include "player/player_rumble_clips.h"
 #include "render_plan.h"
 #include "scene/portal_surface.h"
-#include "shadow_map.h"
 #include "signals.h"
 #include "system/controller.h"
 #include "util/frame_time.h"
@@ -44,8 +38,6 @@ struct LandingMenuOption gPauseMenuOptions[] = {
     {GAMEUI_OPTIONS, GameMenuStateOptions},
     {GAMEUI_GAMEMENU_QUIT, GameMenuStateConfirmQuit},
 };
-
-Lights1 gSceneLights = gdSPDefLights1(128, 128, 128, 128, 128, 128, 0, 127, 0);
 
 #define LEVEL_INDEX_WITH_GUN_0  2
 #define LEVEL_INDEX_WITH_GUN_1  8
@@ -318,54 +310,6 @@ void sceneInitNoPauseMenu(struct Scene* scene, int mainMenuMode) {
 
     scene->cpuTime = 0;
     scene->updateTime = 0;
-}
-
-LookAt gLookAt = gdSPDefLookAt(127, 0, 0, 0, 127, 0);
-
-void sceneRender(struct Scene* scene, struct RenderState* renderState, struct GraphicsTask* task) {
-    playerApplyCameraTransform(&scene->player, &scene->camera.transform);
-    vector3Add(&scene->camera.transform.position, &scene->freeCameraOffset, &scene->camera.transform.position);
-
-    gSPSetLights1(renderState->dl++, gSceneLights);
-    LookAt* lookAt = renderStateRequestLookAt(renderState);
-
-    if (!lookAt) {
-        return;
-    }
-
-    *lookAt = gLookAt;
-    gSPLookAt(renderState->dl++, lookAt);
-
-    gDPSetRenderMode(renderState->dl++, G_RM_ZB_OPA_SURF, G_RM_ZB_OPA_SURF2);
-
-    struct RenderPlan renderPlan;
-
-    Mtx* staticMatrices = sceneAnimatorBuildTransforms(&scene->animator, renderState);
-
-    renderPlanBuild(&renderPlan, scene, renderState);
-    renderPlanExecute(&renderPlan, scene, staticMatrices, scene->animator.transforms, renderState, task);
-
-    if (scene->showCollisionContacts) {
-        contactSolverDebugDraw(&gContactSolver, renderState);
-    }
-
-    if (!scene->hideHud) {
-        portalGunRenderReal(
-            &scene->portalGun,
-            renderState,
-            &scene->camera,
-            scene->hud.lastPortalIndexShot
-        );
-
-        if (gGameMenu.state == GameMenuStateResumeGame || hudOverlayVisible(&scene->hud, &scene->player)) {
-            hudRender(&scene->hud, &scene->player, renderState);
-            debugSceneRender(scene, renderState, &renderPlan);
-        }
-    }
-
-    if (gGameMenu.state != GameMenuStateResumeGame) {
-        gameMenuRender(&gGameMenu, renderState, task);
-    }
 }
 
 u8 gFireGunRumbleWaveData[] = {

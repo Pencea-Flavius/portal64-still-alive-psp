@@ -7,6 +7,7 @@
 #include "MaterialGenerator.h"
 #include "../RenderChunkOrder.h"
 #include "../ZSorter.h"
+#include "../psp/PspMeshWriter.h"
 
 bool extractMaterialAutoTileParameters(Material* material, double& sTile, double& tTile) {
     if (!material) {
@@ -165,7 +166,9 @@ MeshDefinitionResults MeshDefinitionGenerator::GenerateDefinitionsWithResults(co
 
     MeshDefinitionResults result;
 
-    result.modelName = generateMesh(scene, fileDefinition, renderChunks, mSettings, "_geo");
+    result.modelName = mSettings.mTargetPsp
+        ? generatePspMesh(scene, fileDefinition, renderChunks, mSettings, "_geo")
+        : generateMesh(scene, fileDefinition, renderChunks, mSettings, "_geo");
     result.materialMacro = MaterialGenerator::MaterialIndexMacroName(mSettings.mDefaultMaterialName);
 
     if (fileDefinition.GetBoneHierarchy().HasData() && !mSettings.mBonesAsVertexGroups) {
@@ -175,7 +178,11 @@ MeshDefinitionResults MeshDefinitionGenerator::GenerateDefinitionsWithResults(co
 
         fileDefinition.AddHeader("\"sk64/skeletool_armature.h\"");
 
-        armatureDef->AddPrimitive(result.modelName);
+        // ModelHandle is a pointer on either machine. The N64's model is a
+        // Gfx array, which decays to one; the PSP's is a struct PspModel, so
+        // the handle is its address.
+        armatureDef->AddPrimitive(
+            mSettings.mTargetPsp ? "&" + result.modelName : result.modelName);
         armatureDef->AddPrimitive(animationResults.initialPoseReference);
         armatureDef->AddPrimitive(animationResults.boneParentReference);
         armatureDef->AddPrimitive(animationResults.boneCountMacro);

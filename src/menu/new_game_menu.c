@@ -1,10 +1,13 @@
 #include "new_game_menu.h"
+#include "scene/scene.h"
+
+// sprintf came from libultra's headers by way of <ultra64.h>.
+#include <stdio.h>
 
 #include "font/font.h"
 #include "font/dejavu_sans.h"
 
 #include "audio/soundplayer.h"
-#include "graphics/image.h"
 #include "levels/levels.h"
 #include "strings/translations.h"
 #include "savefile/savefile.h"
@@ -15,7 +18,6 @@
 #include "util/memory.h"
 
 #include "codegen/assets/audio/clips.h"
-#include "codegen/assets/materials/ui.h"
 #include "codegen/assets/materials/images.h"
 #include "codegen/assets/strings/strings.h"
 
@@ -34,17 +36,17 @@ struct Chapter gChapters[] = {
 };
 
 #define TOTAL_CHAPTER_COUNT ((sizeof(gChapters) / sizeof(*gChapters)))
-#define NEW_GAME_X          40
-#define NEW_GAME_Y          45
+
+const int gChapterCount = TOTAL_CHAPTER_COUNT;
 
 static void chapterMenuItemInit(struct ChapterMenuItem* chapterMenuItem, int x, int y) {
     chapterMenuItem->chapterText = NULL;
     chapterMenuItem->testChamberText = NULL;
     chapterMenuItem->border = menuBuildSolidBorder(
         x, y + 27,
-        92, 58,
-        x + 4, y + 32,
-        CHAPTER_IMAGE_WIDTH, CHAPTER_IMAGE_HEIGHT
+        CHAPTER_BORDER_WIDTH, CHAPTER_BORDER_HEIGHT,
+        x + CHAPTER_BORDER_PADDING, y + 32,
+        CHAPTER_DRAW_WIDTH, CHAPTER_DRAW_HEIGHT
     );
 
     chapterMenuItem->imageBuffer = malloc(CHAPTER_IMAGE_SIZE);
@@ -53,6 +55,8 @@ static void chapterMenuItemInit(struct ChapterMenuItem* chapterMenuItem, int x, 
     chapterMenuItem->chapter = NULL;
     chapterMenuItem->x = x;
     chapterMenuItem->y = y;
+
+    chapterMenuItemRenderInit(chapterMenuItem);
 }
 
 static void chapterMenuItemSetChapter(struct ChapterMenuItem* chapterMenuItem, int chapterIndex) {
@@ -72,30 +76,35 @@ static void chapterMenuItemSetChapter(struct ChapterMenuItem* chapterMenuItem, i
         romCopy(chapter->imageData, chapterMenuItem->imageBuffer, CHAPTER_IMAGE_SIZE);
     }
 
+    chapterMenuItem->chapterIndex = chapterIndex;
+
     int x = chapterMenuItem->x;
     int y = chapterMenuItem->testChamberText->y + chapterMenuItem->testChamberText->height;
 
-    Gfx* gfx = menuRerenderSolidBorder(
+    // The build already left a terminator past the four fills, so relocating
+    // rewrites them in place and does not need one of its own.
+    menuSolidBorderRelocate(
+        chapterMenuItem->border,
         x, y + 4,
-        92, 58,
-        x + 4, y + 9,
-        CHAPTER_IMAGE_WIDTH, CHAPTER_IMAGE_HEIGHT,
-        chapterMenuItem->border
+        CHAPTER_BORDER_WIDTH, CHAPTER_BORDER_HEIGHT,
+        x + CHAPTER_BORDER_PADDING, y + 9,
+        CHAPTER_DRAW_WIDTH, CHAPTER_DRAW_HEIGHT
     );
-    gSPEndDisplayList(gfx);
+
+    chapterMenuItemImageUpdate(chapterMenuItem);
 
     chapterMenuItem->chapter = chapter;
 }
 
 void newGameInit(struct NewGameMenu* newGameMenu) {
-    newGameMenu->newGameText = menuBuildPrerenderedText(&gDejaVuSansFont, translationsGet(GAMEUI_NEWGAME), 48, 48, SCREEN_WD);
+    newGameMenu->newGameText = menuBuildPrerenderedText(&gDejaVuSansFont, translationsGet(GAMEUI_NEWGAME), NEW_GAME_TITLE_X, NEW_GAME_TITLE_Y, SCREEN_WD);
     newGameMenu->menuOutline = menuBuildBorder(NEW_GAME_X, NEW_GAME_Y, SCREEN_WD - (NEW_GAME_X * 2), SCREEN_HT - (NEW_GAME_Y) * 2);
-    newGameMenu->topLine = menuBuildHorizontalLine(52, 64, 214);
+    newGameMenu->topLine = menuBuildHorizontalLine(NEW_GAME_LINE_X, NEW_GAME_LINE_Y, NEW_GAME_LINE_WIDTH);
 
     confirmationDialogInit(&newGameMenu->confirmationDialog);
 
-    chapterMenuItemInit(&newGameMenu->leftChapter, 55, 76);
-    chapterMenuItemInit(&newGameMenu->rightChapter, 163, 76);
+    chapterMenuItemInit(&newGameMenu->leftChapter, CHAPTER_LEFT_X, CHAPTER_Y);
+    chapterMenuItemInit(&newGameMenu->rightChapter, CHAPTER_RIGHT_X, CHAPTER_Y);
 
     chapterMenuItemSetChapter(&newGameMenu->leftChapter, 0);
     chapterMenuItemSetChapter(&newGameMenu->rightChapter, 1);
@@ -113,7 +122,7 @@ void newGameRebuildText(struct NewGameMenu* newGameMenu) {
     }
 
     prerenderedTextFree(newGameMenu->newGameText);
-    newGameMenu->newGameText = menuBuildPrerenderedText(&gDejaVuSansFont, translationsGet(GAMEUI_NEWGAME), 48, 48, SCREEN_WD);
+    newGameMenu->newGameText = menuBuildPrerenderedText(&gDejaVuSansFont, translationsGet(GAMEUI_NEWGAME), NEW_GAME_TITLE_X, NEW_GAME_TITLE_Y, SCREEN_WD);
 }
 
 static void newGameStartSelectedChapter(struct NewGameMenu* newGameMenu) {
@@ -200,78 +209,4 @@ enum InputCapture newGameUpdate(struct NewGameMenu* newGameMenu) {
     }
 
     return InputCapturePass;
-}
-
-void newGameRender(struct NewGameMenu* newGameMenu, struct RenderState* renderState, struct GraphicsTask* task) {
-    gSPDisplayList(renderState->dl++, ui_material_list[DEFAULT_UI_INDEX]);
-
-    gSPDisplayList(renderState->dl++, ui_material_list[SOLID_TRANSPARENT_OVERLAY_INDEX]);
-    gDPFillRectangle(renderState->dl++, 0, 0, SCREEN_WD, SCREEN_HT);
-    gSPDisplayList(renderState->dl++, ui_material_revert_list[SOLID_TRANSPARENT_OVERLAY_INDEX]);
-
-    gSPDisplayList(renderState->dl++, ui_material_list[ROUNDED_CORNERS_INDEX]);
-    gSPDisplayList(renderState->dl++, newGameMenu->menuOutline);
-    gSPDisplayList(renderState->dl++, ui_material_revert_list[ROUNDED_CORNERS_INDEX]);
-
-    gSPDisplayList(renderState->dl++, ui_material_list[SOLID_ENV_INDEX]);
-    gSPDisplayList(renderState->dl++, newGameMenu->topLine);
-
-    int leftChapterSelected = newGameMenu->selectedChapterIndex == newGameMenu->leftChapterIndex;
-    int showRightChapter = (newGameMenu->leftChapterIndex + 1) < TOTAL_CHAPTER_COUNT &&
-        newGameMenu->rightChapter.chapter->testChamberLevelIndex <= gSaveData.header.chapterProgressLevelIndex &&
-        newGameMenu->rightChapter.chapter->testChamberLevelIndex > 0;
-
-    gDPPipeSync(renderState->dl++);
-    menuSetRenderColor(renderState, leftChapterSelected, &gSelectionOrange, &gColorBlack);
-    gSPDisplayList(renderState->dl++, newGameMenu->leftChapter.border);
-
-    if (showRightChapter) {
-        gDPPipeSync(renderState->dl++);
-        menuSetRenderColor(renderState, !leftChapterSelected, &gSelectionOrange, &gColorBlack);
-        gSPDisplayList(renderState->dl++, newGameMenu->rightChapter.border);
-    }
-
-    gSPDisplayList(renderState->dl++, ui_material_revert_list[SOLID_ENV_INDEX]);
-
-    struct PrerenderedTextBatch* batch = prerenderedBatchStart();
-
-    prerenderedBatchAdd(batch, newGameMenu->newGameText, NULL);
-
-    prerenderedBatchAdd(batch, newGameMenu->leftChapter.chapterText, leftChapterSelected ? &gSelectionOrange : &gColorWhite);
-    prerenderedBatchAdd(batch, newGameMenu->leftChapter.testChamberText, leftChapterSelected ? &gSelectionOrange : &gColorWhite);
-
-    if (showRightChapter) {
-        prerenderedBatchAdd(batch, newGameMenu->rightChapter.chapterText, !leftChapterSelected ? &gSelectionOrange : &gColorWhite);
-        prerenderedBatchAdd(batch, newGameMenu->rightChapter.testChamberText, !leftChapterSelected ? &gSelectionOrange : &gColorWhite);
-    }
-
-    renderState->dl = prerenderedBatchFinish(batch, gDejaVuSansImages, renderState->dl);
-
-    gSPDisplayList(renderState->dl++, ui_material_revert_list[DEJAVU_SANS_0_INDEX]);
-
-    graphicsCopyImage(
-        renderState, newGameMenu->leftChapter.imageBuffer,
-        CHAPTER_IMAGE_WIDTH, CHAPTER_IMAGE_HEIGHT,
-        0, 0,
-        CHAPTER_IMAGE_WIDTH, CHAPTER_IMAGE_HEIGHT,
-        newGameMenu->leftChapter.x + 4,
-        newGameMenu->leftChapter.testChamberText->y + newGameMenu->leftChapter.testChamberText->height + 9,
-        gColorWhite
-    );
-
-    if (showRightChapter) {
-        graphicsCopyImage(
-            renderState, newGameMenu->rightChapter.imageBuffer,
-            CHAPTER_IMAGE_WIDTH, CHAPTER_IMAGE_HEIGHT,
-            0, 0,
-            CHAPTER_IMAGE_WIDTH, CHAPTER_IMAGE_HEIGHT,
-            newGameMenu->rightChapter.x + 4,
-            newGameMenu->rightChapter.testChamberText->y + newGameMenu->rightChapter.testChamberText->height + 9,
-            gColorWhite
-        );
-    }
-
-    if (newGameMenu->confirmationDialog.isShown) {
-        confirmationDialogRender(&newGameMenu->confirmationDialog, renderState);
-    }
 }

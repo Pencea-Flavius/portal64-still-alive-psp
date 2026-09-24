@@ -38,7 +38,16 @@ struct PortalGun {
 
 void portalGunInit(struct PortalGun* portalGun, struct Transform* at, int isFreshStart);
 void portalGunUpdate(struct PortalGun* portalGun, struct Player* player);
+// Drawing is split per machine; the build picks which .c defines these.
+struct MaterialState;
+void portalBallRender(struct PortalGunProjectile* projectile, struct RenderState* renderState, struct MaterialState* materialState, struct Transform* fromView, int portalIndex);
 void portalGunRenderReal(struct PortalGun* portalGun, struct RenderState* renderState, struct Camera* fromCamera, int lastFiredIndex);
+
+// Shared by both halves: the colour of each portal's projectile, and the
+// transform the view model is drawn at.
+extern struct Coloru8 gProjectileColor[];
+extern struct Transform gGunTransform;
+extern struct Quaternion gFlipAroundY;
 
 void portalGunFire(struct PortalGun* portalGun, int portalIndex, struct Ray* ray, struct Transform* lookTransform, struct Vector3* playerUp, int roomIndex);
 void portalGunFireWorld(struct PortalGun* portalGun, int portalIndex, struct Vector3* from, struct Vector3* to, int roomIndex);

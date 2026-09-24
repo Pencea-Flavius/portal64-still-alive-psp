@@ -10,37 +10,8 @@
 
 #include "codegen/assets/materials/static.h"
 #include "codegen/assets/models/dynamic_model_list.h"
-#include "codegen/assets/models/signage/clock_digits.h"
 
-#define DIGIT_WIDTH     512
 #define MENU_TIME_LEFT  -1.0f
-
-static u8 gCurrentClockDigits[7];
-static Vtx* gClockDigits[] = {
-    signage_clock_digits_clock_digits_hour_01_color,
-    signage_clock_digits_clock_digits_minute_10_color,
-    signage_clock_digits_clock_digits_minute_01_color,
-    signage_clock_digits_clock_digits_second_10_color,
-    signage_clock_digits_clock_digits_second_01_color,
-    signage_clock_digits_clock_digits_ms_10_color,
-    signage_clock_digits_clock_digits_ms_01_color,
-};
-
-static void clockSetDigit(int digitIndex, int currDigit) {
-    int prevDigit = gCurrentClockDigits[digitIndex];
-
-    if (prevDigit == currDigit) {
-        return;
-    }
-
-    Vtx* digitPointer = dynamicAssetFixPointer(SIGNAGE_CLOCK_DIGITS_DYNAMIC_MODEL, gClockDigits[digitIndex]);
-
-    for (int i = 0; i < 4; ++i) {
-        digitPointer[i].v.tc[0] += (currDigit - prevDigit) * DIGIT_WIDTH;
-    }
-    gCurrentClockDigits[digitIndex] = (u8)currDigit;
-    osWritebackDCache(digitPointer, sizeof(Vtx) * 4);
-}
 
 static void clockSetTime(float timeInSeconds, short tenThousandths) {
     float minutes = floorf(timeInSeconds * (1.0f / 60.0f));
@@ -74,7 +45,7 @@ static void clockSetTime(float timeInSeconds, short tenThousandths) {
 static void clockRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct Clock* clock = (struct Clock*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &clock->transform, SCENE_SCALE);
 
     if (!matrix) {
         return;
@@ -92,8 +63,6 @@ static void clockRender(void* data, struct DynamicRenderDataList* renderList, st
     } else {
         clockSetTime(clock->timeLeft, clock->tenThousandths);
     }
-
-    transformToMatrixL(&clock->transform, matrix, SCENE_SCALE);
 
     dynamicRenderListAddData(
         renderList,
@@ -128,7 +97,7 @@ void clockInit(struct Clock* clock, struct ClockDefinition* definition) {
     int dynamicId = dynamicSceneAdd(clock, clockRender, &clock->transform.position, 0.8f);
     dynamicSceneSetRoomFlags(dynamicId, ROOM_FLAG_FROM_INDEX(clock->roomIndex));
     
-    zeroMemory(gCurrentClockDigits, sizeof(gCurrentClockDigits));
+    clockDigitsReset();
 }
 
 void clockShowMainMenuTime(struct Clock* clock) {

@@ -6,7 +6,6 @@
 #include "system/display.h"
 
 #include "codegen/assets/audio/clips.h"
-#include "codegen/assets/materials/ui.h"
 
 #define DIALOG_LEFT       40
 #define DIALOG_WIDTH      (SCREEN_WD - (DIALOG_LEFT * 2))
@@ -21,8 +20,6 @@
 
 #define BUTTON_HEIGHT     16
 #define BUTTON_MARGIN     8
-
-static struct Coloru8 gDialogColor = {164, 164, 164, 255};
 
 void confirmationDialogInit(struct ConfirmationDialog* confirmationDialog) {
     confirmationDialog->menuOutline = menuBuildBorder(0, 0, 0, 0);
@@ -54,12 +51,12 @@ static void confirmationDialogLayout(struct ConfirmationDialog* confirmationDial
     int dialogHeight = CONTENT_MARGIN + confirmationDialog->messageText->height + BUTTON_MARGIN + BUTTON_HEIGHT + DIALOG_PADDING;
     int dialogTop = (SCREEN_HT - dialogHeight) / 2;
 
-    menuRerenderBorder(
+    menuBorderRelocate(
+        confirmationDialog->menuOutline,
         DIALOG_LEFT,
         dialogTop,
         DIALOG_WIDTH,
-        dialogHeight,
-        confirmationDialog->menuOutline
+        dialogHeight
     );
     prerenderedTextRelocate(
         confirmationDialog->titleText,
@@ -166,59 +163,4 @@ enum InputCapture confirmationDialogUpdate(struct ConfirmationDialog* confirmati
     }
 
     return InputCaptureGrab;
-}
-
-static void renderButtonText(struct ConfirmationDialog* confirmationDialog, struct MenuButton* button, struct PrerenderedTextBatch* batch) {
-    struct Coloru8* color = confirmationDialog->selectedButton == button ? &gColorBlack : &gColorWhite;
-    prerenderedBatchAdd(batch, button->text, color);
-}
-
-void confirmationDialogRender(struct ConfirmationDialog* confirmationDialog, struct RenderState* renderState) {
-    gSPDisplayList(renderState->dl++, ui_material_list[DEFAULT_UI_INDEX]);
-    gDPSetScissor(renderState->dl++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WD, SCREEN_HT);
-
-    gSPDisplayList(renderState->dl++, ui_material_list[SOLID_TRANSPARENT_OVERLAY_INDEX]);
-    gDPFillRectangle(renderState->dl++, 0, 0, SCREEN_WD, SCREEN_HT);
-    gSPDisplayList(renderState->dl++, ui_material_revert_list[SOLID_TRANSPARENT_OVERLAY_INDEX]);
-
-    gSPDisplayList(renderState->dl++, ui_material_list[ROUNDED_CORNERS_INDEX]);
-    gDPPipeSync(renderState->dl++);
-    gDPSetEnvColor(renderState->dl++, gDialogColor.r, gDialogColor.g, gDialogColor.b, confirmationDialog->opacity);
-    gSPDisplayList(renderState->dl++, confirmationDialog->menuOutline);
-    gSPDisplayList(renderState->dl++, ui_material_revert_list[ROUNDED_CORNERS_INDEX]);
-
-    gSPDisplayList(renderState->dl++, ui_material_list[SOLID_ENV_INDEX]);
-
-    if (confirmationDialog->selectedButton != NULL) {
-        gDPPipeSync(renderState->dl++);
-        gDPSetEnvColor(renderState->dl++, gSelectionOrange.r, gSelectionOrange.g, gSelectionOrange.b, gSelectionOrange.a);
-        gDPFillRectangle(
-            renderState->dl++,
-            confirmationDialog->selectedButton->x,
-            confirmationDialog->selectedButton->y,
-            confirmationDialog->selectedButton->x + confirmationDialog->selectedButton->w,
-            confirmationDialog->selectedButton->y + confirmationDialog->selectedButton->h
-        );
-    }
-
-    gSPDisplayList(renderState->dl++, confirmationDialog->confirmButton.outline);
-    gSPDisplayList(renderState->dl++, confirmationDialog->cancelButton.outline);
-
-    gSPDisplayList(renderState->dl++, ui_material_revert_list[SOLID_ENV_INDEX]);
-
-    struct PrerenderedTextBatch* batch = prerenderedBatchStart();
-
-    if (confirmationDialog->titleText) {
-        prerenderedBatchAdd(batch, confirmationDialog->titleText, NULL);
-    }
-    if (confirmationDialog->messageText) {
-        prerenderedBatchAdd(batch, confirmationDialog->messageText, NULL);
-    }
-
-    renderButtonText(confirmationDialog, &confirmationDialog->confirmButton, batch);
-    renderButtonText(confirmationDialog, &confirmationDialog->cancelButton, batch);
-
-    renderState->dl = prerenderedBatchFinish(batch, gDejaVuSansImages, renderState->dl);
-
-    gDPSetScissor(renderState->dl++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WD, SCREEN_HT);
 }

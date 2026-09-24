@@ -1,7 +1,7 @@
 #ifndef __MENU_AUDIO_OPTIONS_H__
 #define __MENU_AUDIO_OPTIONS_H__
 
-#include "graphics/graphics.h"
+#include "graphics/render_types.h"
 #include "menu.h"
 #include "menu_builder.h"
 

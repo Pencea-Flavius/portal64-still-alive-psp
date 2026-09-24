@@ -305,18 +305,28 @@ local function generate_cutscenes()
 
     local cutscenes = {}
 
-    for cutscene_name, cutscene_steps in pairs(cutscene_json) do
+    -- In name order: checkpoints save cutscene and signal indices, and pairs()
+    -- order differs between runs, so saves broke across builds.
+    local cutscene_names = {}
+
+    for cutscene_name, _ in pairs(cutscene_json) do
+        table.insert(cutscene_names, cutscene_name)
+    end
+
+    table.sort(cutscene_names)
+
+    for _, cutscene_name in ipairs(cutscene_names) do
         table.insert(cutscenes, {
             name = cutscene_name,
-            steps = cutscene_steps,
+            steps = cutscene_json[cutscene_name],
             macro = sk_definition_writer.raw(sk_definition_writer.add_macro("CUTSCENE_" .. cutscene_name, #cutscenes)),
         })
     end
 
-    for _, cutscene in pairs(cutscenes) do
+    for _, cutscene in ipairs(cutscenes) do
         local other_steps = {}
 
-        for _, step_string in pairs(cutscene.steps) do
+        for _, step_string in ipairs(cutscene.steps) do
             local args = util.string_split(step_string, ' ')
 
             table.insert(other_steps, {
@@ -329,7 +339,7 @@ local function generate_cutscenes()
 
         local steps = {}
 
-        for step_index, step in pairs(other_steps) do
+        for step_index, step in ipairs(other_steps) do
             table.insert(steps, generate_cutscene_step(cutscene.name, step, step_index, label_locations, cutscenes))
         end
 

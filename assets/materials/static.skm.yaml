@@ -237,6 +237,10 @@ materials:
       set: [G_SHADE, G_CULL_BACK]
       clear: [G_LIGHTING]
 
+    # Braces stand just in front of these; a smaller decal pull on the PSP.
+    properties:
+      pspDecalLight: true
+
   wall_pipes_horiz_frame:
     gDPSetTile:
       filename: ../../portal_pak_modified/materials/models/props/wall_pipes_horiz/wall_pipes_horiz_frame.png
@@ -1684,9 +1688,12 @@ materials:
       color: ["0", "0", "0", "TEXEL0"]
       alpha: ["0", "0", "0", "TEXEL0"]
 
+    # Long and translucent: sorted by its centre it can land before glass
+    # behind it, so it writes depth where opaque on the PSP.
     properties:
       tileSizeS: 0.25
       tileSizeT: 0.25
+      pspDepthWhereOpaque: true
 
   hazard_liquid:
     gDPSetTile:

@@ -380,23 +380,7 @@ void portalSurfaceLerpVtx(struct PortalSurfaceBuilder* surfaceBuilder, int aInde
 
     float lerp = (float)numerator / (float)deniminator;
 
-    Vtx* a = &surfaceBuilder->gfxVertices[aIndex];
-    Vtx* b = &surfaceBuilder->gfxVertices[bIndex];
-    Vtx* result = &surfaceBuilder->gfxVertices[resultIndex];
-
-    result->v.ob[0] = (short)mathfLerp(a->v.ob[0], b->v.ob[0], lerp);
-    result->v.ob[1] = (short)mathfLerp(a->v.ob[1], b->v.ob[1], lerp);
-    result->v.ob[2] = (short)mathfLerp(a->v.ob[2], b->v.ob[2], lerp);
-
-    result->v.flag = 0;
-
-    result->v.tc[0] = (short)mathfLerp(a->v.tc[0], b->v.tc[0], lerp);
-    result->v.tc[1] = (short)mathfLerp(a->v.tc[1], b->v.tc[1], lerp);
-
-    result->v.cn[0] = (short)mathfLerp(a->v.cn[0], b->v.cn[0], lerp);
-    result->v.cn[1] = (short)mathfLerp(a->v.cn[1], b->v.cn[1], lerp);
-    result->v.cn[2] = (short)mathfLerp(a->v.cn[2], b->v.cn[2], lerp);
-    result->v.cn[3] = (short)mathfLerp(a->v.cn[3], b->v.cn[3], lerp);
+    portalSurfaceVertexLerp(surfaceBuilder->gfxVertices, aIndex, bIndex, resultIndex, lerp);
 }
 
 void portalSurfaceCalcVertex(struct PortalSurfaceBuilder* surfaceBuilder, int loopEdge, int resultIndex) {
@@ -421,24 +405,8 @@ void portalSurfaceCalcVertex(struct PortalSurfaceBuilder* surfaceBuilder, int lo
         &barycentericCoords
     );
 
-    Vtx* a = &surfaceBuilder->gfxVertices[aIndex];
-    Vtx* b = &surfaceBuilder->gfxVertices[bIndex];
-    Vtx* c = &surfaceBuilder->gfxVertices[cIndex];
-    Vtx* result = &surfaceBuilder->gfxVertices[resultIndex];
-
-    result->v.ob[0] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.ob[0], b->v.ob[0], c->v.ob[0]);
-    result->v.ob[1] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.ob[1], b->v.ob[1], c->v.ob[1]);
-    result->v.ob[2] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.ob[2], b->v.ob[2], c->v.ob[2]);
-
-    result->v.flag = 0;
-
-    result->v.tc[0] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.tc[0], b->v.tc[0], c->v.tc[0]);
-    result->v.tc[1] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.tc[1], b->v.tc[1], c->v.tc[1]);
-
-    result->v.cn[0] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.cn[0], b->v.cn[0], c->v.cn[0]);
-    result->v.cn[1] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.cn[1], b->v.cn[1], c->v.cn[1]);
-    result->v.cn[2] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.cn[2], b->v.cn[2], c->v.cn[2]);
-    result->v.cn[3] = (short)vector3EvalBarycentric1D(&barycentericCoords, a->v.cn[3], b->v.cn[3], c->v.cn[3]);
+    portalSurfaceVertexBarycentric(
+        surfaceBuilder->gfxVertices, aIndex, bIndex, cIndex, resultIndex, &barycentericCoords);
 }
 
 int portalSurfaceSplitEdgeWithVertex(struct PortalSurfaceBuilder* surfaceBuilder, int edge, int newVertexIndex) {
@@ -982,8 +950,88 @@ int portalSurfaceTriangulate(struct PortalSurfaceBuilder* surfaceBuilder) {
     return 1;
 }
 
-int portalSurfacePokeHole(struct PortalSurface* surface, struct Vector2s16* loop, struct PortalSurface* result) {
+// Twice the signed area of a triangle, in 64 bits to avoid overflow.
+static long long portalSurfaceTriangleArea2(struct Vector2s16* vertices, struct SurfaceEdge* edges, int edgeIndex) {
+    struct SurfaceEdge* edge = &edges[edgeIndex];
+    struct Vector2s16* a = &vertices[edge->pointIndex];
+    struct Vector2s16* b = &vertices[edges[edge->nextEdge].pointIndex];
+    struct Vector2s16* c = &vertices[edges[edge->prevEdge].pointIndex];
+
+    return (long long)(b->x - a->x) * (c->y - a->y) - (long long)(c->x - a->x) * (b->y - a->y);
+}
+
+// Flipped by at least this much, a triangle shows as a hole; less is
+// rounding on a sliver.
+#define MAX_FLIPPED_AREA2       4
+
+// Checks a finished cut: every triangle faces the wall's way and the area is
+// the wall's less the hole's. A loop point landing exactly on an edge can
+// otherwise flip or drop triangles.
+static int portalSurfaceCutIsSound(struct PortalSurfaceBuilder* surfaceBuilder, struct Vector2s16* loop) {
+    struct PortalSurface* original = surfaceBuilder->original;
+
+    // Each triangle is counted once for each of its three edges.
+    long long originalArea = 0;
+
+    for (int i = 0; i < original->edgeCount; ++i) {
+        originalArea += portalSurfaceTriangleArea2(original->vertices, original->edges, i);
+    }
+
+    int winding = originalArea < 0 ? -1 : 1;
+    originalArea *= winding;
+
+    long long cutArea = 0;
+
+    for (int i = 0; i < surfaceBuilder->currentEdge; ++i) {
+        struct SurfaceEdge* edge = portalSurfaceGetEdge(surfaceBuilder, i);
+
+        if (edge->nextEdge == NO_EDGE_CONNECTION) {
+            continue;
+        }
+
+        // Only triangles can be drawn.
+        if (portalSurfaceNextEdge(surfaceBuilder, edge->nextEdge) != edge->prevEdge) {
+            return 0;
+        }
+
+        long long area = portalSurfaceTriangleArea2(surfaceBuilder->vertices, surfaceBuilder->edges, i) * winding;
+
+        if (area <= -MAX_FLIPPED_AREA2) {
+            return 0;
+        }
+
+        cutArea += area;
+    }
+
+    long long holeArea = 0;
+    int perimeter = 0;
+
+    for (int i = 0; i < PORTAL_LOOP_SIZE; ++i) {
+        struct Vector2s16* a = &loop[i];
+        struct Vector2s16* b = &loop[(i + 1) % PORTAL_LOOP_SIZE];
+        holeArea += (long long)a->x * b->y - (long long)b->x * a->y;
+        perimeter += abs(b->x - a->x) + abs(b->y - a->y);
+    }
+
+    if (holeArea < 0) {
+        holeArea = -holeArea;
+    }
+
+    // New vertices are rounded to whole units, moving the area by about half a
+    // unit along the hole. Areas here are times six (doubled, counted thrice).
+    long long expected = originalArea - holeArea * 3;
+    long long error = cutArea - expected;
+    long long tolerance = (long long)(perimeter + 64) * 6;
+
+    return error <= tolerance && error >= -tolerance;
+}
+
+// Enough for the loop to cross every edge several times.
+#define MAX_POKE_ITERATIONS     512
+
+static int portalSurfacePokeHoleOnce(struct PortalSurface* surface, struct Vector2s16* loop, struct PortalSurface* result) {
     struct PortalSurfaceBuilder surfaceBuilder;
+    int iterations = 0;
 
     int edgeCapacity = surface->edgeCount + ADDITIONAL_EDGE_CAPACITY;
 
@@ -1003,11 +1051,11 @@ int portalSurfacePokeHole(struct PortalSurface* surface, struct Vector2s16* loop
         surfaceBuilder.originalEdgeIndex[i] = i;
     }
 
-    surfaceBuilder.gfxVertices = stackMalloc(sizeof(Vtx) * (surface->vertexCount + ADDITIONAL_EDGE_CAPACITY));
+    surfaceBuilder.gfxVertices = stackMalloc(portalSurfaceVerticesSize(surface->vertexCount + ADDITIONAL_EDGE_CAPACITY));
 
     zeroMemory(surfaceBuilder.edgeFlags, edgeCapacity);
     zeroMemory(surfaceBuilder.isLoopEdge, edgeCapacity);
-    memCopy(surfaceBuilder.gfxVertices, surface->gfxVertices, sizeof(Vtx) * surface->vertexCount);
+    memCopy(surfaceBuilder.gfxVertices, surface->gfxVertices, portalSurfaceVerticesSize(surface->vertexCount));
 
     struct Vector2s16* prev = &loop[0];
 
@@ -1022,6 +1070,11 @@ int portalSurfacePokeHole(struct PortalSurface* surface, struct Vector2s16* loop
     }
 
     for (int index = 1; index <= PORTAL_LOOP_SIZE;) {
+        // A degenerate point could stall the loop forever; give up instead.
+        if (++iterations > MAX_POKE_ITERATIONS) {
+            goto error;
+        }
+
         struct Vector2s16* next = &loop[index == PORTAL_LOOP_SIZE ? 0 : index];
 
         if (!portalSurfaceFindNextLoop(&surfaceBuilder, next)) {
@@ -1077,6 +1130,10 @@ int portalSurfacePokeHole(struct PortalSurface* surface, struct Vector2s16* loop
         goto error;
     }
 
+    if (!portalSurfaceCutIsSound(&surfaceBuilder, loop)) {
+        goto error;
+    }
+
     result->vertices = malloc(sizeof(struct Vector2s16) * surfaceBuilder.currentVertex);
     result->edges = malloc(sizeof(struct SurfaceEdge) * surfaceBuilder.currentEdge);
     result->edgeCount = surfaceBuilder.currentEdge;
@@ -1111,4 +1168,33 @@ error:
     stackMallocFree(surfaceBuilder.edges);
     stackMallocFree(surfaceBuilder.vertices);
     return 0;
+}
+
+// Nudges in 1/256 m units, enough to move a loop point off an edge.
+static struct Vector2s16 gPokeHoleNudges[] = {
+    {{{0, 0}}},
+    {{{1, 0}}},
+    {{{0, 1}}},
+    {{{-1, 0}}},
+    {{{0, -1}}},
+    {{{2, 1}}},
+    {{{-1, 2}}},
+    {{{-2, -1}}},
+    {{{1, -2}}},
 };
+
+int portalSurfacePokeHole(struct PortalSurface* surface, struct Vector2s16* loop, struct PortalSurface* result) {
+    for (int attempt = 0; attempt < (int)(sizeof(gPokeHoleNudges) / sizeof(*gPokeHoleNudges)); ++attempt) {
+        struct Vector2s16 nudged[PORTAL_LOOP_SIZE];
+
+        for (int i = 0; i < PORTAL_LOOP_SIZE; ++i) {
+            vector2s16Add(&loop[i], &gPokeHoleNudges[attempt], &nudged[i]);
+        }
+
+        if (portalSurfacePokeHoleOnce(surface, nudged, result)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}

@@ -1,7 +1,6 @@
 #include "game_menu.h"
 
 #include "menu.h"
-#include "scene/render_plan.h"
 #include "strings/translations.h"
 #include "system/controller.h"
 #include "util/memory.h"
@@ -104,9 +103,6 @@ void gameMenuUpdate(struct GameMenu* gameMenu) {
         }
     }
 }
-
-extern Lights1 gSceneLights;
-extern LookAt gLookAt;
 
 void gameMenuRender(struct GameMenu* gameMenu, struct RenderState* renderState, struct GraphicsTask* task) {
     switch (gameMenu->state) {

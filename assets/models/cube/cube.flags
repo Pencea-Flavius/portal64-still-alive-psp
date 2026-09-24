@@ -1,1 +1,1 @@
--m assets/materials/static.skm.yaml --default-material cube
+-m assets/materials/static.skm.yaml --default-material cube --psp-default-material-from-scene

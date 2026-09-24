@@ -119,19 +119,6 @@ void sceneAnimatorTransformForIndex(struct SceneAnimator* sceneAnimator, int ind
     }
 }
 
-Mtx* sceneAnimatorBuildTransforms(struct SceneAnimator* sceneAnimator, struct RenderState* renderState) {
-    Mtx* result = renderStateRequestMatrices(renderState, sceneAnimator->boneCount);
-
-    Mtx* curr = result;
-
-    for (int i = 0; i < sceneAnimator->animatorCount; ++i) {
-        skCalculateTransforms(&sceneAnimator->armatures[i], curr);
-        curr += sceneAnimator->armatures[i].numberOfBones;
-    }
-    
-    return result;
-}
-
 void sceneAnimatorPlay(struct SceneAnimator* sceneAnimator, int animatorIndex, int animationIndex, float speed, int flags) {
     if (animatorIndex < 0 || animatorIndex >= sceneAnimator->animatorCount) {
         return;

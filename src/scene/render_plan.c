@@ -12,11 +12,6 @@
 #include "system/display.h"
 #include "util/memory.h"
 
-#include "codegen/assets/models/portal/portal_blue.h"
-#include "codegen/assets/models/portal/portal_blue_face.h"
-#include "codegen/assets/models/portal/portal_orange.h"
-#include "codegen/assets/models/portal/portal_orange_face.h"
-
 // if a portal takes up a small portion of the screen it is worth to clear
 // the zbuffer after drawing the contents instead of 
 #define PORTAL_AREA_CLEAR_THRESHOLD (100 * 100)
@@ -47,13 +42,13 @@ int renderPropsZDistance(int currentDepth) {
     if (currentDepth >= gSaveData.gameplay.portalRenderDepth) {
         return 0;
     } else if (currentDepth < 0) {
-        return G_MAXZ;
+        return RENDER_MAX_DEPTH;
     } else {
-        return G_MAXZ - (G_MAXZ >> (gSaveData.gameplay.portalRenderDepth - currentDepth));
+        return RENDER_MAX_DEPTH - (RENDER_MAX_DEPTH >> (gSaveData.gameplay.portalRenderDepth - currentDepth));
     }
 }
 
-Vp* renderPropsBuildViewport(struct RenderProps* props, struct RenderState* renderState) {
+RenderViewport renderPropsBuildViewport(struct RenderProps* props, struct RenderState* renderState) {
     int minX = props->minX;
     int maxX = props->maxX;
     int minY = props->minY;
@@ -65,30 +60,14 @@ Vp* renderPropsBuildViewport(struct RenderProps* props, struct RenderState* rend
     renderPropscheckViewportSize(&minX, &maxX, SCREEN_WD);
     renderPropscheckViewportSize(&minY, &maxY, SCREEN_HT);
 
-    Vp* viewport = renderStateRequestViewport(renderState);
-
-    if (!viewport) {
-        return NULL;
-    }
-
-    viewport->vp.vscale[0] = (maxX - minX) << 1;
-    viewport->vp.vscale[1] = (maxY - minY) << 1;
-    viewport->vp.vscale[2] = (maxZ - minZ) >> 1;
-    viewport->vp.vscale[3] = 0;
-
-    viewport->vp.vtrans[0] = (maxX + minX) << 1;
-    viewport->vp.vtrans[1] = (maxY + minY) << 1;
-    viewport->vp.vtrans[2] = (maxZ + minZ) >> 1;
-    viewport->vp.vtrans[3] = 0;
-
-    return viewport;
+    return renderStateBuildViewport(renderState, minX, minY, maxX, maxY, minZ, maxZ);
 }
 
 void renderPropsInit(struct RenderProps* props, struct Camera* camera, float aspectRatio, struct RenderState* renderState, u16 roomIndex) {
     props->camera = *camera;
     props->aspectRatio = aspectRatio;
 
-    cameraSetupMatrices(camera, renderState, aspectRatio, &fullscreenViewport, 1, &props->cameraMatrixInfo);
+    cameraSetupMatrices(camera, renderState, aspectRatio, renderViewportFullscreen(), 1, &props->cameraMatrixInfo);
 
     props->currentDepth = gSaveData.gameplay.portalRenderDepth;
     props->exitPortalIndex = NO_PORTAL;
@@ -117,7 +96,7 @@ void renderPlanFinishView(struct RenderPlan* renderPlan, struct Scene* scene, st
 
 float getAspect()
 {
-    return (gSaveData.video.flags & VideoSaveFlagsWideScreen) != 0 ? ASPECT_WIDE : ASPECT_SD;
+    return displayGetAspect();
 }
 
 #define CALC_SCREEN_SPACE(clip_space, screen_size) ((clip_space + 1.0f) * ((screen_size) / 2))
@@ -166,10 +145,26 @@ int renderPlanPortal(struct RenderPlan* renderPlan, struct Scene* scene, struct 
         renderPlan->clippedPortalIndex = portalIndex;
     }
 
+#ifdef PSP
+    // Rounded outwards, and the parent's whole rectangle when the camera is in
+    // the portal, so no gap is left at the screen's edge.
+    if (clipper.nearPolygonCount) {
+        next->minX = current->minX;
+        next->maxX = current->maxX;
+        next->minY = current->minY;
+        next->maxY = current->maxY;
+    } else {
+        next->minX = (int)floorf(CALC_SCREEN_SPACE(clippingBounds.min.x, SCREEN_WD));
+        next->maxX = (int)ceilf(CALC_SCREEN_SPACE(clippingBounds.max.x, SCREEN_WD));
+        next->minY = (int)floorf(CALC_SCREEN_SPACE(-clippingBounds.max.y, SCREEN_HT));
+        next->maxY = (int)ceilf(CALC_SCREEN_SPACE(-clippingBounds.min.y, SCREEN_HT));
+    }
+#else
     next->minX = CALC_SCREEN_SPACE(clippingBounds.min.x, SCREEN_WD);
     next->maxX = CALC_SCREEN_SPACE(clippingBounds.max.x, SCREEN_WD);
     next->minY = CALC_SCREEN_SPACE(-clippingBounds.max.y, SCREEN_HT);
     next->maxY = CALC_SCREEN_SPACE(-clippingBounds.min.y, SCREEN_HT);
+#endif
 
     next->minX = MAX(next->minX, current->minX);
     next->maxX = MIN(next->maxX, current->maxX);
@@ -177,6 +172,11 @@ int renderPlanPortal(struct RenderPlan* renderPlan, struct Scene* scene, struct 
     next->maxY = MIN(next->maxY, current->maxY);
 
     struct RenderProps* prevSibling = prevSiblingPtr ? *prevSiblingPtr : NULL;
+
+#ifdef PSP
+    // The PSP masks each stage to its oval instead (renderStageMaskToPortal()).
+    prevSibling = NULL;
+#endif
 
     if (prevSibling) {
         int topDiff = 0;
@@ -327,9 +327,37 @@ int renderPlanPortal(struct RenderPlan* renderPlan, struct Scene* scene, struct 
 #define MIN_FAR_PLANE   (5.0f * SCENE_SCALE)
 #define FAR_PLANE_EXTRA  2.0f
 
-void renderPlanDetermineFarPlane(struct Ray* cameraRay, struct RenderProps* properties) {
+// Geometry can reach past its room's box (a shaft below a grating), so the
+// far plane also takes each visible room's static boxes.
+static float renderPlanStaticMaxDistance(struct Ray* ray, u64 roomMask) {
+    float result = 0.0f;
 
-    float furthestDistance = (worldMaxDistanceInDirection(&gCurrentLevel->world, cameraRay, properties->visiblerooms) + FAR_PLANE_EXTRA) * SCENE_SCALE;
+    for (int room = 0; room < gCurrentLevel->world.roomCount; ++room) {
+        if (!((1LL << room) & roomMask)) {
+            continue;
+        }
+
+        struct StaticIndex* index = &gCurrentLevel->roomBvhList[room];
+
+        for (int i = 0; i < index->boxCount; ++i) {
+            struct BoundingBoxs16* box = &index->boxIndex[i].box;
+            struct Vector3 corner;
+            corner.x = (ray->dir.x > 0.0f ? box->maxX : box->minX) * (1.0f / SCENE_SCALE);
+            corner.y = (ray->dir.y > 0.0f ? box->maxY : box->minY) * (1.0f / SCENE_SCALE);
+            corner.z = (ray->dir.z > 0.0f ? box->maxZ : box->minZ) * (1.0f / SCENE_SCALE);
+
+            result = MAX(result, rayDetermineDistance(ray, &corner));
+        }
+    }
+
+    return result;
+}
+
+void renderPlanDetermineFarPlane(struct Ray* cameraRay, struct RenderProps* properties) {
+    float roomDistance = worldMaxDistanceInDirection(&gCurrentLevel->world, cameraRay, properties->visiblerooms);
+    float staticDistance = renderPlanStaticMaxDistance(cameraRay, properties->visiblerooms);
+
+    float furthestDistance = (MAX(roomDistance, staticDistance) + FAR_PLANE_EXTRA) * SCENE_SCALE;
 
     if (furthestDistance < MIN_FAR_PLANE) {
         properties->camera.farPlane = MIN_FAR_PLANE;
@@ -482,16 +510,17 @@ void renderPlanAdjustViewportDepth(struct RenderPlan* renderPlan) {
     totalWeight += depthWeight[gSaveData.gameplay.portalRenderDepth];
     depthWeight[gSaveData.gameplay.portalRenderDepth] *= 2.0f;
 
-    float scale = (float)G_MAXZ / totalWeight;
+    float scale = (float)RENDER_MAX_DEPTH / totalWeight;
 
-    short zBufferBoundary[gSaveData.gameplay.portalRenderDepth + 2];
+    // int: the GE's 16 bit depth does not fit a signed short.
+    int zBufferBoundary[gSaveData.gameplay.portalRenderDepth + 2];
 
     zBufferBoundary[gSaveData.gameplay.portalRenderDepth + 1] = 0;
 
     for (int i = gSaveData.gameplay.portalRenderDepth; i >= 0; --i) {
-        zBufferBoundary[i] = (short)(scale * depthWeight[i]) + zBufferBoundary[i + 1];
+        zBufferBoundary[i] = (int)(scale * depthWeight[i]) + zBufferBoundary[i + 1];
 
-        zBufferBoundary[i] = MIN(zBufferBoundary[i], G_MAXZ);
+        zBufferBoundary[i] = MIN(zBufferBoundary[i], RENDER_MAX_DEPTH);
     }
 
     for (int i = 0; i < renderPlan->stageCount; ++i) {
@@ -508,11 +537,10 @@ void renderPlanAdjustViewportDepth(struct RenderPlan* renderPlan) {
             useDepth = depthSearch->currentDepth;
         }
 
-        short minZ = zBufferBoundary[useDepth + 1];
-        short maxZ = zBufferBoundary[useDepth];
+        int minZ = zBufferBoundary[useDepth + 1];
+        int maxZ = zBufferBoundary[useDepth];
 
-        current->viewport->vp.vscale[2] = (maxZ - minZ) >> 1;
-        current->viewport->vp.vtrans[2] = (maxZ + minZ) >> 1;
+        renderViewportSetDepthRange(current->viewport, minZ, maxZ);
     }
 }
 
@@ -525,138 +553,4 @@ void renderPlanBuild(struct RenderPlan* renderPlan, struct Scene* scene, struct 
     renderPlanFinishView(renderPlan, scene, &renderPlan->stageProps[0], renderState);
 
     renderPlanAdjustViewportDepth(renderPlan);
-}
-
-#define MIN_FOG_DISTANCE 1.0f
-#define MAX_FOG_DISTANCE 2.5f
-
-extern LookAt gLookAt;
-
-void renderPlanExecute(struct RenderPlan* renderPlan, struct Scene* scene, Mtx* staticMatrices, struct Transform* staticTransforms, struct RenderState* renderState, struct GraphicsTask* task) {
-    struct DynamicRenderDataList* dynamicList = dynamicRenderListNew(
-        renderState,
-        renderPlan->stageProps,
-        renderPlan->stageCount,
-        MAX_DYNAMIC_SCENE_OBJECTS
-    );
-    dynamicRenderListPopulate(dynamicList);
-
-    for (int stageIndex = renderPlan->stageCount - 1; stageIndex >= 0; --stageIndex) {
-        struct RenderProps* current = &renderPlan->stageProps[stageIndex];
-
-        if (!cameraApplyMatrices(renderState, &current->cameraMatrixInfo)) {
-            return;
-        }
-
-        gSPViewport(renderState->dl++, current->viewport);
-        gDPSetScissor(renderState->dl++, G_SC_NON_INTERLACE, current->minX, current->minY, current->maxX, current->maxY);
-
-        float lerpMin = cameraClipDistance(&current->camera, MIN_FOG_DISTANCE);
-        float lerpMax = cameraClipDistance(&current->camera, MAX_FOG_DISTANCE);
-
-        int fogMin = fogIntValue(lerpMin);
-        int fogMax = fogIntValue(lerpMax);
-
-        if (fogMax <= 0) {
-            fogMax = 1;
-        }
-
-        if (fogMin >= 1000) {
-            fogMin = 999;
-        }
-        
-        gSPFogPosition(renderState->dl++, fogMin, fogMax);
-
-        // this lookat calcuation only takes into account 
-        // the direction of the camera. A better approach would
-        // be to take into account the direction towards each
-        // reflective object from the camera. fixing this could
-        // come later
-        LookAt* lookAt = renderStateRequestLookAt(renderState);
-        *lookAt = gLookAt;
-        struct Vector3 cameraForward;
-        quatMultVector(&current->camera.transform.rotation, &gForward, &cameraForward);
-        vector3Negate(&cameraForward, &cameraForward);
-        vector3ToVector3u8(&cameraForward, (struct Vector3u8*)&lookAt->l[0].l.dir);
-
-        quatMultVector(&current->camera.transform.rotation, &gUp, &cameraForward);
-        vector3Negate(&cameraForward, &cameraForward);
-        vector3ToVector3u8(&cameraForward, (struct Vector3u8*)&lookAt->l[1].l.dir);
-        gSPLookAt(renderState->dl++, lookAt);
-
-        int portalIndex = (current->portalRenderType & PORTAL_RENDER_TYPE_SECOND_CLOSER) ? 1 : 0;
-        
-        for (int i = 0; i < 2; ++i) {
-            if (current->portalRenderType & PORTAL_RENDER_TYPE_VISIBLE(portalIndex)) {
-                float portalTransform[4][4];
-                struct Portal* portal = &scene->portals[portalIndex];
-                portalDetermineTransform(portal, portalTransform);
-
-                struct RenderProps* portalProps = current->nextProperites[portalIndex];
-
-                if (portalProps && current->portalRenderType & PORTAL_RENDER_TYPE_ENABLED(portalIndex)) {
-                    // render the front portal cover
-                    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
-
-                    if (!matrix) {
-                        continue;;
-                    }
-
-                    guMtxF2L(portalTransform, matrix);
-                    gSPMatrix(renderState->dl++, matrix, G_MTX_MODELVIEW | G_MTX_PUSH | G_MTX_MUL);
-
-                    gDPSetEnvColor(renderState->dl++, 255, 255, 255, portal->opacity < 0.0f ? 0 : (portal->opacity > 1.0f ? 255 : (u8)(portal->opacity * 255.0f)));
-                    
-                    Gfx* faceModel;
-                    Gfx* portalModel;
-
-                    if (portal->flags & PortalFlagsOddParity) {
-                        faceModel = portal_portal_blue_face_model_gfx;
-                        portalModel = portal_portal_blue_model_gfx;
-                    } else {
-                        faceModel = portal_portal_orange_face_model_gfx;
-                        portalModel = portal_portal_orange_model_gfx;
-                    }
-                    
-                    if (portal->flags & PortalFlagsZOffset) {
-                        // render the portal cover with a slightly offset z
-                        // so it doesn't z fight with the surface it is attached to
-                        Vp* vpWithOffset = renderStateRequestViewport(renderState);
-                        *vpWithOffset = *current->viewport;
-                        vpWithOffset->vp.vtrans[2] -= 2;
-                        gSPViewport(renderState->dl++, vpWithOffset);
-                    }
-                    gSPDisplayList(renderState->dl++, faceModel);
-                    gSPViewport(renderState->dl++, current->viewport);
-                    if (current->previousProperties == NULL && portalIndex == renderPlan->clippedPortalIndex && renderPlan->nearPolygonCount) {
-                        portalRenderScreenCover(renderPlan->nearPolygon, renderPlan->nearPolygonCount, current, renderState);
-                    }
-                    gDPPipeSync(renderState->dl++);
-
-                    gSPDisplayList(renderState->dl++, portalModel);
-                    
-                    gSPPopMatrix(renderState->dl++, G_MTX_MODELVIEW);
-                } else {
-                    portalRenderCover(portal, portalTransform, renderState);
-                }
-            }
-
-            portalIndex = 1 - portalIndex;
-        }
-
-        staticRender(
-            current,
-            dynamicList,
-            stageIndex,
-            staticMatrices,
-            staticTransforms,
-            renderState
-        );
-
-        if (current->shouldClearZBuffer) {
-            graphicsTaskClearZBuffer(task, current->minX, current->minY, current->maxX, current->maxY);
-        }
-    }
-
-    dynamicRenderListFree(dynamicList);
 }

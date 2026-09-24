@@ -74,29 +74,3 @@ void mainMenuUpdate(struct GameMenu* gameMenu) {
         signageUpdate(&gScene.signage[i]);
     }
 }
-
-extern Lights1 gSceneLights;
-extern LookAt gLookAt;
-
-void mainMenuRender(struct GameMenu* gameMenu, struct RenderState* renderState, struct GraphicsTask* task) {
-    gSPSetLights1(renderState->dl++, gSceneLights);
-    LookAt* lookAt = renderStateRequestLookAt(renderState);
-
-    if (!lookAt) {
-        return;
-    }
-    
-    *lookAt = gLookAt;
-    gSPLookAt(renderState->dl++, lookAt);
-
-    gDPSetRenderMode(renderState->dl++, G_RM_ZB_OPA_SURF, G_RM_ZB_OPA_SURF2);
-
-    struct RenderPlan renderPlan;
-
-    Mtx* staticMatrices = sceneAnimatorBuildTransforms(&gScene.animator, renderState);
-
-    renderPlanBuild(&renderPlan, &gScene, renderState);
-    renderPlanExecute(&renderPlan, &gScene, staticMatrices, gScene.animator.transforms, renderState, task);
-
-    gameMenuRender(gameMenu, renderState, task);
-}

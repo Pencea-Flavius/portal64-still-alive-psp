@@ -1,3 +1,4 @@
+#include "savefile/savefile.h"
 #include "system/display.h"
 
 #include "rsp_scheduler_libultra.h"
@@ -54,6 +55,13 @@ void displayClearScreen() {
 
 int displayGetFPS() {
     return (osTvType == OS_TV_PAL) ? 50 : 60;
+}
+
+float displayGetAspect() {
+    // A 4:3 picture, or the same picture stretched for a 16:9 television.
+    return (gSaveData.video.flags & VideoSaveFlagsWideScreen) != 0
+        ? 1.777777777777778f
+        : 1.333333333333333f;
 }
 
 uint16_t* displayGetCurrentFramebuffer() {

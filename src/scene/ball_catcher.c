@@ -30,21 +30,17 @@ static struct ColliderTypeData sBallCatcherCollider = {
 void ballCatcherRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct BallCatcher* catcher = (struct BallCatcher*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &catcher->rigidBody.transform, SCENE_SCALE);
 
     if (!matrix) {
         return;
     }
 
-    transformToMatrixL(&catcher->rigidBody.transform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, catcher->armature.numberOfBones);
+    RenderMatrices armature = skArmatureBuildTransforms(&catcher->armature, renderState);
 
     if (!armature) {
         return;
     }
-
-    skCalculateTransforms(&catcher->armature, armature);
 
     dynamicRenderListAddData(
         renderList,

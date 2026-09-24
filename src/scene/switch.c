@@ -51,19 +51,15 @@ static void switchRender(void* data, struct DynamicRenderDataList* renderList, s
     struct Transform finalTransform = switchObj->rigidBody.transform;
     vector3AddScaled(&finalTransform.position, &gUp, -COLLIDER_HEIGHT * 0.5f, &finalTransform.position);
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &finalTransform, SCENE_SCALE);
     if (!matrix) {
         return;
     }
 
-    transformToMatrixL(&finalTransform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, switchObj->armature.numberOfBones);
+    RenderMatrices armature = skArmatureBuildTransforms(&switchObj->armature, renderState);
     if (!armature) {
         return;
     }
-
-    skCalculateTransforms(&switchObj->armature, armature);
 
     dynamicRenderListAddData(
         renderList,

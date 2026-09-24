@@ -13,6 +13,8 @@ public:
 
     static std::string MaterialIndexMacroName(const std::string& materialName);
 private:
+    void GeneratePspDefinitions(CFileDefinition& fileDefinition, std::vector<std::shared_ptr<Material>>& materials);
+
     DisplayListSettings mSettings;
 };
 

@@ -50,6 +50,7 @@ void fromLua(lua_State* L, DisplayListSettings& result, const DisplayListSetting
                 }
 
                 result.mDefaultMaterialState = material->mState;
+                result.mPspPartMaterialFromScene = true;
             }
         }
 
@@ -92,6 +93,9 @@ int luaInputModuleLoader(lua_State* L) {
 
     toLua(L, defaults->mTicksPerSecond);
     lua_setfield(L, -2, "ticks_per_second");
+
+    lua_pushboolean(L, defaults->mTargetPsp);
+    lua_setfield(L, -2, "target_psp");
 
     lua_setfield(L, -2, "settings");
 

@@ -1,4 +1,5 @@
 #include "save_game_menu.h"
+#include "scene/scene.h"
 
 #include "audio/soundplayer.h"
 #include "levels/levels.h"

@@ -1,6 +1,9 @@
 #include "dynamic_render_list.h"
 
+#include "render_plan.h"
+
 #include "dynamic_scene.h"
+#include "math/matrix.h"
 #include "physics/collision_scene.h"
 #include "savefile/savefile.h"
 #include "util/memory.h"
@@ -21,8 +24,8 @@ struct DynamicRenderDataList* dynamicRenderListNew(struct RenderState* renderSta
         transformToMatrix(collisionSceneTransformToOtherPortal(0), result->portalTransforms[0], SCENE_SCALE);
         transformToMatrix(collisionSceneTransformToOtherPortal(1), result->portalTransforms[1], SCENE_SCALE);
     } else {
-        guMtxIdentF(result->portalTransforms[0]);
-        guMtxIdentF(result->portalTransforms[1]);
+        matrixIdentity(result->portalTransforms[0]);
+        matrixIdentity(result->portalTransforms[1]);
     }
 
     return result;
@@ -35,11 +38,11 @@ void dynamicRenderListFree(struct DynamicRenderDataList* list) {
 
 void dynamicRenderListAddData(
     struct DynamicRenderDataList* list,
-    Gfx* model,
-    Mtx* transform,
+    ModelHandle model,
+    RenderMatrices transform,
     short materialIndex,
     struct Vector3* position,
-    Mtx* armature
+    RenderMatrices armature
 ) {
     if (list->currentLength >= list->maxLength) {
         return;
@@ -58,11 +61,11 @@ void dynamicRenderListAddData(
 
 void dynamicRenderListAddDataTouchingPortal(
     struct DynamicRenderDataList* list,
-    Gfx* model,
-    Mtx* transform,
+    ModelHandle model,
+    RenderMatrices transform,
     short materialIndex,
     struct Vector3* position,
-    Mtx* armature,
+    RenderMatrices armature,
     int rigidBodyFlags
 ) {
     dynamicRenderListAddData(list, model, transform, materialIndex, position, armature);
@@ -96,20 +99,16 @@ void dynamicRenderListAddDataTouchingPortal(
     }
 
     // Render clones
-    Mtx* mtx = renderStateRequestMatrices(list->renderState, 1);
-    if (!mtx) {
+    RenderMatrices clonedTransform = renderStateTransformThroughPortal(
+        list->renderState, transform, list->portalTransforms[touchingPortalIndex]);
+
+    if (!clonedTransform) {
         return;
     }
 
-    float transformAsFloat[4][4];
-    float finalTransform[4][4];
-    guMtxL2F(transformAsFloat, transform);
-    guMtxCatF(transformAsFloat, list->portalTransforms[touchingPortalIndex], finalTransform);
-    guMtxF2L(finalTransform, mtx);
-
     struct DynamicRenderData* next = &list->renderData[list->currentLength++];
     next->model = model;
-    next->transform = mtx;
+    next->transform = clonedTransform;
     transformPoint(collisionSceneTransformToOtherPortal(touchingPortalIndex), position, &next->position);
     next->armature = armature;
     next->materialIndex = materialIndex;

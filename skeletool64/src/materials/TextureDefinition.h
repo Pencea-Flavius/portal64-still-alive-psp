@@ -95,8 +95,19 @@ public:
 
     std::unique_ptr<FileDefinition> GenerateDefinition(const std::string& name, const std::string& location) const;
 
+    // The image for the PSP's GU; no texel packing in common with the RDP.
+    // The GU has no mirrored wrap: mirrored textures are baked at twice the
+    // size and repeated. One definition per mip level, level 0 first.
+    // Outputs: whether levels are swizzled, their GU_PSM_* format, and the
+    // palette (<baseName>_clut) for T4/T8.
+    std::vector<std::unique_ptr<FileDefinition>> GeneratePspDefinitions(const std::string& baseName, const std::string& location, bool mirrorS, bool mirrorT, bool alphaOnly = false, bool invert = false, bool* swizzled = nullptr, std::string* format = nullptr, std::unique_ptr<FileDefinition>* clut = nullptr) const;
+    bool PspIs16Bit() const;
+
     int Width() const;
     int Height() const;
+
+    // Rounds up to the power of two the GE needs; the declared size.
+    static int PspPaddedSize(int value);
 
     G_IM_FMT Format() const;
     G_IM_SIZ Size() const;

@@ -1,13 +1,14 @@
 #include "video_options.h"
-
 #include "font/dejavu_sans.h"
+
 #include "savefile/savefile.h"
 #include "strings/translations.h"
 #include "system/display.h"
+#include "menu.h"
 
 #include "codegen/assets/strings/strings.h"
 
-#define MENU_Y      54
+#define MENU_Y      OPTIONS_PAGE_TOP
 #define MENU_WIDTH  252
 #define MENU_HEIGHT 124
 #define MENU_X      ((SCREEN_WD - MENU_WIDTH) / 2)
@@ -16,15 +17,39 @@ struct MenuElementParams gVideoMenuParams[] = {
     {
         .type = MenuElementTypeCheckbox,
         .x = MENU_X + 8, 
+#ifdef PSP
+        .y = MENU_Y + 28,
+#else
         .y = MENU_Y + 8,
+#endif
         .params = {
             .checkbox = {
                 .font = &gDejaVuSansFont,
+#ifdef PSP
+                // The PSP has one aspect ratio and no interlacing, so this slot shows the
+                // frame rate. The profiler (VideoSaveFlagsProfiler) has no menu entry.
+                .message = "Show FPS",
+#else
                 .messageId = GAMEUI_ASPECTWIDE,
+#endif
             },
         },
         .selectionIndex = VideoOptionWidescreen,
     },
+#ifdef PSP
+    {
+        .type = MenuElementTypeText,
+        .x = MENU_X + 8, 
+        .y = MENU_Y + 8,
+        .params = {
+            .checkbox = {
+                .font = &gDejaVuSansFont,
+                .messageId = GAMEUI_VIDEO,
+            },
+        },
+        .selectionIndex = -1,
+    },
+#else
     {
         .type = MenuElementTypeCheckbox,
         .x = MENU_X + 8, 
@@ -37,6 +62,7 @@ struct MenuElementParams gVideoMenuParams[] = {
         },
         .selectionIndex = VideoOptionInterlaced,
     },
+#endif
     {
         .type = MenuElementTypeText,
         .x = MENU_X + 8, 
@@ -120,12 +146,23 @@ struct MenuElementParams gVideoMenuParams[] = {
 #define LANGUAGE_SLIDER_INDEX 5
 #define LANGUAGE_TEXT_INDEX 7
 
+#ifndef PSP
 static char sIsInterlacedEnabled = 1;
+#endif
 
 void videoOptionsAction(void* data, int selection, struct MenuAction* action) {
     struct VideoOptions* videoOptions = (struct VideoOptions*)data;
 
     switch (selection) {
+#ifdef PSP
+        case VideoOptionWidescreen:
+            if (action->state.checkbox.isChecked) {
+                gSaveData.video.flags |= VideoSaveFlagsShowFps;
+            } else {
+                gSaveData.video.flags &= ~VideoSaveFlagsShowFps;
+            }
+            break;
+#else
         case VideoOptionWidescreen:
             if (action->state.checkbox.isChecked) {
                 gSaveData.video.flags |= VideoSaveFlagsWideScreen;
@@ -137,6 +174,7 @@ void videoOptionsAction(void* data, int selection, struct MenuAction* action) {
             sIsInterlacedEnabled = action->state.checkbox.isChecked;
             displaySetMode(sIsInterlacedEnabled);
             break;
+#endif
         case VideoOptionSubtitles:
             if (action->state.checkbox.isChecked) {
                 gSaveData.video.flags |= VideoSaveFlagsSubtitlesEnabled;
@@ -179,8 +217,12 @@ void videoOptionsInit(struct VideoOptions* videoOptions) {
         videoOptions
     );
 
+#ifdef PSP
+    menuBuilderSetCheckbox(&videoOptions->menuBuilder.elements[WIDESCREEN_INDEX], (gSaveData.video.flags & VideoSaveFlagsShowFps) != 0);
+#else
     menuBuilderSetCheckbox(&videoOptions->menuBuilder.elements[WIDESCREEN_INDEX], (gSaveData.video.flags & VideoSaveFlagsWideScreen) != 0);
     menuBuilderSetCheckbox(&videoOptions->menuBuilder.elements[INTERLACED_INDEX], sIsInterlacedEnabled);
+#endif
 
     menuBuilderSetCheckbox(&videoOptions->menuBuilder.elements[CAPTIONS_INDEX], (gSaveData.video.flags & VideoSaveFlagsCaptionsEnabled) != 0);
     menuBuilderSetCheckbox(&videoOptions->menuBuilder.elements[SUBTITLES_INDEX], (gSaveData.video.flags & VideoSaveFlagsSubtitlesEnabled) != 0);

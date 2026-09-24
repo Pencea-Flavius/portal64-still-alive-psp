@@ -5,11 +5,12 @@
 #include "savefile/savefile.h"
 #include "system/controller.h"
 #include "system/display.h"
+#include "menu.h"
 
 #include "codegen/assets/audio/languages.h"
 #include "codegen/assets/strings/strings.h"
 
-#define MENU_Y      54
+#define MENU_Y      OPTIONS_PAGE_TOP
 #define MENU_WIDTH  252
 #define MENU_HEIGHT 124
 #define MENU_X      ((SCREEN_WD - MENU_WIDTH) / 2)

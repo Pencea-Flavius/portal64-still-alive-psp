@@ -1,6 +1,8 @@
 #ifndef __SHADOW_RENDERER_H__
 #define __SHADOW_RENDERER_H__
 
+#include "graphics/render_types.h"
+
 #include <ultra64.h>
 
 #include "graphics/color.h"
@@ -14,17 +16,17 @@ enum ShadowReceiverFlags {
 };
 
 struct ShadowReceiver {
-    Gfx* litMaterial;
-    Gfx* shadowMaterial;
-    Gfx* geometry;
+    RenderDisplayList litMaterial;
+    RenderDisplayList shadowMaterial;
+    ModelHandle geometry;
     unsigned short flags;
     struct Transform transform;
 };
 
 struct ShadowRenderer {
-    Gfx* shadowVolume;
-    Gfx* shadowProfile;
-    Vtx* vertices;
+    RenderDisplayList shadowVolume;
+    RenderDisplayList shadowProfile;
+    RenderVertices vertices;
     struct Transform casterTransform;
     float shadowLength;
 };

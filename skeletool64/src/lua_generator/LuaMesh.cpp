@@ -10,6 +10,7 @@
 #include "./LuaBasicTypes.h"
 #include "./LuaScene.h"
 #include "../MeshWriter.h"
+#include "../psp/PspMeshWriter.h"
 #include "./LuaDisplayListSettings.h"
 
 #include "./LuaGeometry.h"
@@ -556,9 +557,20 @@ int luaGenerateMesh(lua_State* L) {
         DisplayListSettings settingOverride;
         fromLua(L, settingOverride, *settings);
 
-        result = generateMesh(scene, *fileDefinition, renderChunks, settingOverride, location);
+        // Same PSP switch as MeshDefinitionGenerator, for levels.
+        result = settingOverride.mTargetPsp
+            ? generatePspMesh(scene, *fileDefinition, renderChunks, settingOverride, location)
+            : generateMesh(scene, *fileDefinition, renderChunks, settingOverride, location);
     } else {
-        result = generateMesh(scene, *fileDefinition, renderChunks, *settings, location);
+        result = settings->mTargetPsp
+            ? generatePspMesh(scene, *fileDefinition, renderChunks, *settings, location)
+            : generateMesh(scene, *fileDefinition, renderChunks, *settings, location);
+    }
+
+    // A ModelHandle is a pointer on both machines: the N64's Gfx array already
+    // is, the PSP's struct PspModel needs its address.
+    if (settings->mTargetPsp && !result.empty()) {
+        result = "&" + result;
     }
 
     toLua(L, result);
@@ -604,14 +616,19 @@ int luaGetMeshVertexBuffer(lua_State* L) {
     meshFromLua(L, mesh);
 
 
-    std::string result = fileDefinition->GetVertexBuffer(
-        mesh, 
-        Material::GetVertexType(material), 
-        Material::TextureWidth(material), 
-        Material::TextureHeight(material), 
-        suffix,
-        material->mDefaultVertexColor
-    );
+    // Portal surface vertices use the machine's layout too.
+    DisplayListSettings* settings = (DisplayListSettings*)lua_touserdata(L, lua_upvalueindex(2));
+
+    std::string result = settings->mTargetPsp
+        ? generatePspVertexBuffer(*fileDefinition, mesh, material, *settings, suffix)
+        : fileDefinition->GetVertexBuffer(
+            mesh, 
+            Material::GetVertexType(material), 
+            Material::TextureWidth(material), 
+            Material::TextureHeight(material), 
+            suffix,
+            material->mDefaultVertexColor
+        );
 
     luaLoadModuleFunction(L, "sk_definition_writer", "raw");
     toLua(L, result);
@@ -662,8 +679,10 @@ int buildMeshModule(lua_State* L) {
     lua_pushcclosure(L, luaGenerateMesh, 3);
     lua_setfield(L, -2, "generate_mesh");
 
+    // Takes the settings: they choose the vertex layout.
     lua_pushlightuserdata(L, fileDefinition);
-    lua_pushcclosure(L, luaGetMeshVertexBuffer, 1);
+    lua_pushlightuserdata(L, settings);
+    lua_pushcclosure(L, luaGetMeshVertexBuffer, 2);
     lua_setfield(L, -2, "generate_vertex_buffer");
 
     return 1;

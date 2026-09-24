@@ -1,5 +1,6 @@
 #include "pedestal.h"
 
+#include "graphics/renderstate.h"
 #include "scene/dynamic_scene.h"
 #include "scene/hud.h"
 #include "scene/scene.h"
@@ -9,52 +10,9 @@
 #include "codegen/assets/materials/static.h"
 #include "codegen/assets/models/dynamic_animated_model_list.h"
 #include "codegen/assets/models/pedestal.h"
-#include "codegen/assets/models/portal_gun/w_portalgun.h"
 
 struct Vector2 gMaxPedistalRotation;
 #define MAX_PEDISTAL_ROTATION_DEGREES_PER_SEC   (M_PI / 6.0f)
-
-static void pedestalRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
-    struct Pedestal* pedestal = (struct Pedestal*)data;
-
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
-
-    if (!matrix) {
-        return;
-    }
-
-    transformToMatrixL(&pedestal->transform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, pedestal->armature.numberOfBones);
-
-    if (!armature) {
-        return;
-    }
-
-    skCalculateTransforms(&pedestal->armature, armature);
-
-    Gfx* gunAttachment = portal_gun_w_portalgun_model_gfx;
-    Gfx* attachments = skBuildAttachments(&pedestal->armature, (pedestal->flags & PedestalFlagsDown) ? NULL : &gunAttachment, renderState);
-
-    Gfx* objectRender = renderStateAllocateDLChunk(renderState, 4);
-    Gfx* dl = objectRender;
-
-    if (attachments) {
-        gSPSegment(dl++, BONE_ATTACHMENT_SEGMENT,  osVirtualToPhysical(attachments));
-    }
-    gSPSegment(dl++, MATRIX_TRANSFORM_SEGMENT,  osVirtualToPhysical(armature));
-    gSPDisplayList(dl++, pedestal->armature.displayList);
-    gSPEndDisplayList(dl++);
-
-    dynamicRenderListAddData(
-        renderList,
-        objectRender,
-        matrix,
-        DEFAULT_INDEX,
-        &pedestal->transform.position,
-        NULL
-    );
-}
 
 static void pedestalDetermineHolderAngle(struct Pedestal* pedestal, struct Vector3* direction, struct Vector2* output) {
     output->x = direction->z;
@@ -132,6 +90,20 @@ void pedestalPointAt(struct Pedestal* pedestal, struct Vector3* target, int play
     if (playShootingSound) {
         pedestal->flags |= PedestalFlagsPlayShootingSound;
     }
+}
+
+// The end of the gun's barrel in the w_portalgun model, relative to the bone
+// it hangs from. The model runs from -2 to -48 along y, the barrel's end last.
+#define PEDESTAL_GUN_MUZZLE_Y   -48.0f
+
+// Where a shot from the gun on the pedestal starts, turned as the holder is
+// now. It used to be a fixed 0.75m above the base: the middle of the gun,
+// which is where the portal's trail came out of.
+void pedestalGunMuzzle(struct Pedestal* pedestal, struct Vector3* out) {
+    struct Vector3 muzzle = {0.0f, PEDESTAL_GUN_MUZZLE_Y, 0.0f};
+    struct Vector3 offset;
+    skCalculateBonePosition(&pedestal->armature, PEDESTAL_ATTACHMENT_GUN_BONE, &muzzle, &offset);
+    vector3AddScaled(&pedestal->transform.position, &offset, 1.0f / SCENE_SCALE, out);
 }
 
 void pedestalSetDown(struct Pedestal* pedestal) {

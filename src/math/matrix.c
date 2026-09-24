@@ -1,9 +1,59 @@
 #include "matrix.h"
 
-#include "graphics/graphics.h"
+#include "graphics/renderstate.h"
+
+#include <math.h>
+
+void matrixIdentity(float matrix[4][4]) {
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            matrix[i][j] = i == j ? 1.0f : 0.0f;
+        }
+    }
+}
+
+void matrixMul(float a[4][4], float b[4][4], float out[4][4]) {
+    float result[4][4];
+
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            result[i][j] =
+                a[i][0] * b[0][j] +
+                a[i][1] * b[1][j] +
+                a[i][2] * b[2][j] +
+                a[i][3] * b[3][j];
+        }
+    }
+
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            out[i][j] = result[i][j];
+        }
+    }
+}
+
+// The perspective normalize factor the RSP wants, which both projections
+// compute the same way.
+static void matrixPerspectiveNormalize(unsigned short* perspNorm, float near, float far) {
+    if (perspNorm == NULL) {
+        return;
+    }
+
+    if (near + far <= 2.0) {
+        *perspNorm = (u16) 0xFFFF;
+        return;
+    }
+
+    *perspNorm = (u16) ((2.0 * 65536.0) / (near + far));
+
+    if (*perspNorm <= 0) {
+        *perspNorm = (u16) 0x0001;
+    }
+}
+
 
 void matrixPerspective(float matrix[4][4], unsigned short* perspNorm, float l, float r, float t, float b, float near, float far) {
-	guMtxIdentF(matrix);
+	matrixIdentity(matrix);
 
     matrix[0][0] = 2.0f * near / (r - l);
     matrix[1][1] = 2.0f * near / (t - b);
@@ -14,16 +64,23 @@ void matrixPerspective(float matrix[4][4], unsigned short* perspNorm, float l, f
     matrix[3][2] = -2.0f * far * near / (far - near);
     matrix[3][3] = 0.0f;
 
-	if (perspNorm != (u16 *) NULL) {
-	    if (near+far<=2.0) {
-		    *perspNorm = (u16) 0xFFFF;
-	    } else  {
-		    *perspNorm = (u16) ((2.0*65536.0)/(near+far));
-            if (*perspNorm<=0) {
-                *perspNorm = (u16) 0x0001;
-            }
-	    }
-	}
+	matrixPerspectiveNormalize(perspNorm, near, far);
+}
+
+void matrixPerspectiveFov(float matrix[4][4], unsigned short* perspNorm, float fovDegrees, float aspectRatio, float near, float far) {
+    float fovy = fovDegrees * (3.1415926f / 180.0f);
+    float cot = cosf(fovy * 0.5f) / sinf(fovy * 0.5f);
+
+    matrixIdentity(matrix);
+
+    matrix[0][0] = cot / aspectRatio;
+    matrix[1][1] = cot;
+    matrix[2][2] = (near + far) / (near - far);
+    matrix[2][3] = -1.0f;
+    matrix[3][2] = (2.0f * near * far) / (near - far);
+    matrix[3][3] = 0.0f;
+
+    matrixPerspectiveNormalize(perspNorm, near, far);
 }
 
 float matrixNormalizedZValue(float depth, float near, float far) {
@@ -67,8 +124,10 @@ void matrixFromBasis(float matrix[4][4], struct Vector3* origin, struct Vector3*
     matrix[3][3] = 1.0f;
 }
 
+#ifndef PSP
 void matrixFromBasisL(Mtx* matrix, struct Vector3* origin, struct Vector3* x, struct Vector3* y, struct Vector3* z) {
     float fmtx[4][4];
     matrixFromBasis(fmtx, origin, x, y, z);
     guMtxF2L(fmtx, matrix);
 }
+#endif

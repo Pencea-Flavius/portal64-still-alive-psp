@@ -1,9 +1,8 @@
 #ifndef __FONT_FONT_H__
 #define __FONT_FONT_H__
 
-#include <ultra64.h>
-
 #include "graphics/color.h"
+#include "graphics/render_types.h"
 #include "math/vector2s16.h"
 
 #include "codegen/assets/strings/strings.h"
@@ -60,10 +59,12 @@ struct FontRenderer {
 };
 
 void fontRendererLayout(struct FontRenderer* renderer, struct Font* font, char* message, int maxWidth);
-Gfx* fontRendererBuildGfx(struct FontRenderer* renderer, Gfx** fontImages, int x, int y, struct Coloru8* color, Gfx* gfx);
 
+// One entry per font image, holding whatever that machine needs to draw the
+// symbols that came out of the atlas: a display list on the N64, the symbols
+// themselves on the PSP.
 struct PrerenderedText {
-    Gfx** displayLists;
+    RenderDisplayList* displayLists;
     short usedImageIndices;
     short x;
     short y;
@@ -71,15 +72,8 @@ struct PrerenderedText {
     short height;
 };
 
-void fontRendererInitPrerender(struct FontRenderer* renderer, struct PrerenderedText* prerender);
 struct PrerenderedText* prerenderedTextNew(struct FontRenderer* renderer);
-struct PrerenderedText* prerenderedTextCopy(struct PrerenderedText* text);
-void prerenderedTextCleanup(struct PrerenderedText* prerender);
 void prerenderedTextFree(struct PrerenderedText* prerender);
-void prerenderedTextRelocate(struct PrerenderedText* prerender, int x, int y);
-void prerenderedTextRecolor(struct PrerenderedText* prerender, struct Coloru8* color);
-
-void fontRendererFillPrerender(struct FontRenderer* renderer, struct PrerenderedText* prerender, int x, int y, struct Coloru8* color);
 
 #define MAX_PRERENDERED_STRINGS     32
 
@@ -91,6 +85,10 @@ struct PrerenderedTextBatch {
 
 struct PrerenderedTextBatch* prerenderedBatchStart();
 void prerenderedBatchAdd(struct PrerenderedTextBatch* batch, struct PrerenderedText* text, struct Coloru8* color);
-Gfx* prerenderedBatchFinish(struct PrerenderedTextBatch* batch, Gfx** fontImages, Gfx* gfx);
+
+// Everything that draws is declared in the platform's half, which the build
+// puts on the include path. It is included from here rather than from each of
+// the thirteen files that call it, all of which want both halves anyway.
+#include "font_render.h"
 
 #endif

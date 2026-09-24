@@ -1,9 +1,11 @@
 #ifndef __MENU_TABS_H__
 #define __MENU_TABS_H__
 
-#include <ultra64.h>
+#include "graphics/render_types.h"
 
 #include "font/font.h"
+
+#define TAB_HEIGHT 18
 
 struct Tab {
     short messageId;
@@ -25,7 +27,7 @@ struct Tabs {
     short x;
     short y;
     short prevOffset;
-    Gfx* tabOutline;
+    RenderDisplayList tabOutline;
     struct TabRenderData* tabRenderData;
 };
 

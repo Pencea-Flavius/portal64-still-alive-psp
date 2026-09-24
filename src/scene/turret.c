@@ -1,4 +1,5 @@
 #include "turret.h"
+#include "scene/scene.h"
 
 #include "decor/decor_object.h"
 #include "effects/effect_definitions.h"
@@ -290,41 +291,35 @@ static void turretUpdateSounds(struct Turret* turret) {
     }
 }
 
-static void turretRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
-    struct Turret* turret = data;
-
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
-
-    if (!matrix) {
-        return;
-    }
-
+// The turret's transform, bones and eye fade, for both render halves.
+int turretRenderPrepare(
+    struct Turret* turret,
+    struct RenderState* renderState,
+    RenderMatrices* matrixOut,
+    RenderMatrices* armatureOut,
+    int* eyeFadeOut
+) {
     // Render without origin offset
     struct Vector3 transformedOriginOffset;
     quatMultVector(&turret->rigidBody.transform.rotation, &sTurretOriginOffset, &transformedOriginOffset);
 
     struct Transform transform = turret->rigidBody.transform;
     vector3Sub(&transform.position, &transformedOriginOffset, &transform.position);
-    transformToMatrixL(&transform, matrix, SCENE_SCALE);
 
-    Mtx* armature = renderStateRequestMatrices(renderState, turret->armature.numberOfBones);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &transform, SCENE_SCALE);
 
-    if (!armature) {
-        return;
+    if (!matrix) {
+        return 0;
     }
 
-    skCalculateTransforms(&turret->armature, armature);
+    RenderMatrices armature = skArmatureBuildTransforms(&turret->armature, renderState);
 
-    // Turrets are fizzlable and so their material can differ from the one their
-    // display list was generated against. As a result, using a separate
-    // material for the eye fade would cause graphical issues when reverting
-    // back to the base material.
-    //
-    // Instead, the turret materials (normal and fizzled) are fade-capable, and
-    // the eye is rendered as an attachment so we can control the fade amount
-    // before/after it is drawn and not affect the rest of the turret.
+    if (!armature) {
+        return 0;
+    }
 
     int eyeFade;
+
     if (turret->state == TurretStateDead) {
         eyeFade = TURRET_DYING_MAX_EYE_FADE;
     } else if (turret->state == TurretStateDying) {
@@ -334,30 +329,11 @@ static void turretRender(void* data, struct DynamicRenderDataList* renderList, s
         eyeFade = 0;
     }
 
-    Gfx* dlChunk = renderStateAllocateDLChunk(renderState, 7);
-    Gfx* curr = dlChunk;
+    *matrixOut = matrix;
+    *armatureOut = armature;
+    *eyeFadeOut = eyeFade;
 
-    Gfx* eyeGfx = curr;
-    gDPSetEnvColor(curr++, eyeFade, eyeFade, eyeFade, 0);
-    gSPDisplayList(curr++, dynamicAssetModel(PROPS_TURRET_01_EYE_DYNAMIC_MODEL));
-    gDPSetEnvColor(curr++, 0, 0, 0, 0);
-    gSPEndDisplayList(curr++);
-
-    Gfx* turretGfx = decorBuildFizzleGfx(turret->armature.displayList, turret->fizzleTime, renderState);
-    Gfx* finalGfx = curr;
-    gSPSegment(curr++, BONE_ATTACHMENT_SEGMENT, osVirtualToPhysical(eyeGfx));
-    gSPDisplayList(curr++, turretGfx);
-    gSPEndDisplayList(curr++);
-
-    dynamicRenderListAddDataTouchingPortal(
-        renderList,
-        finalGfx,
-        matrix,
-        turret->fizzleTime > 0.0f ? TURRET_FIZZLED_INDEX : TURRET_INDEX,
-        &turret->rigidBody.transform.position,
-        armature,
-        turret->rigidBody.flags
-    );
+    return 1;
 }
 
 static void turretCheckFriendlyCollisionDialogue(struct CollisionObject* object, struct CollisionObject* other) {

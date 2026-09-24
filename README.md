@@ -19,6 +19,30 @@ We do what we must because we can.
 
 ![](./assets/images/readme_slideshow.gif)
 
+## PSP Port
+
+This repository is a PSP port of Portal 64. Only open issues here for things
+that look wrong on the PSP (rendering, textures, depth, missing geometry).
+Gameplay bugs belong in the [main repository](https://github.com/mwpenny/portal64-still-alive/issues).
+
+> [!Note]
+> Join the Discord for build help, bug reports and updates on the port:
+> **https://discord.gg/uQddmU7Vra**
+
+Building needs Linux, or WSL on Windows, since it uses the latest
+[PSP SDK](https://github.com/pspdev/pspdev). Clone this repository instead of
+the one below, then follow [PSP Build Setup](./documentation/building/psp_setup.md):
+
+```sh
+git clone https://github.com/Pencea-Flavius/portal64-still-alive-psp.git portal64
+cd portal64
+cmake -G "Ninja" -B build/psp -S . -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchain-PSP.cmake
+cmake --build build/psp
+```
+
+Copy `EBOOT.PBP` and `sounds.psp` from `build/psp` to `PSP/GAME/Portal/` on
+the memory stick.
+
 ## Disclaimer
 
 This project is not affiliated with Nintendo or Valve.
@@ -85,5 +109,7 @@ Next, install the dependencies. There are two supported ways to do this:
 
 With everything set up, follow the instructions at
 [Building the Game](./documentation/building/building.md).
+
+For the PSP target, see [PSP Build Setup](./documentation/building/psp_setup.md).
 
 To run and save properly, the game expects a cartridge with 32 KB of SRAM.

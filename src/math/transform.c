@@ -21,11 +21,15 @@ void transformToMatrix(struct Transform* in, float mtx[4][4], float sceneScale) 
 }
 
 
+#ifndef PSP
+// Produces an RSP matrix, which only the N64 renderer has any use for. The L
+// suffix already said as much.
 void transformToMatrixL(struct Transform* in, Mtx* mtx, float sceneScale) {
     float mtxf[4][4];
     transformToMatrix(in, mtxf, sceneScale);
     guMtxF2L(mtxf, mtx);
 }
+#endif
 
 void transformInvert(struct Transform* in, struct Transform* out) {
     assert(in != out);

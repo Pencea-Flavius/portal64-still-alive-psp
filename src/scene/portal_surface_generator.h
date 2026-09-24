@@ -1,6 +1,8 @@
 #ifndef __PORTAL_SURFACE_GENERATOR_H__
 #define __PORTAL_SURFACE_GENERATOR_H__
 
+#include "graphics/render_types.h"
+
 #include "portal_surface.h"
 
 #define PORTAL_SURFACE_OVERLAP  0x10000
@@ -35,7 +37,7 @@ struct PortalSurfaceBuilder {
     short hasEdge;
     short hasConnected;
 
-    Vtx* gfxVertices;
+    RenderVertices gfxVertices;
 };
 
 int portalSurfacePokeHole(struct PortalSurface* surface, struct Vector2s16* loop, struct PortalSurface* result);

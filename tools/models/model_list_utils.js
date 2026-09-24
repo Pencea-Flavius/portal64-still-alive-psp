@@ -105,16 +105,19 @@ ${modelHeaders.map(modelHeader => listEntryGenerator(outputPath, modelHeader)).j
 
 function generateData(outputPath, config) {
     const { name } = path.parse(outputPath);
-    const { modelHeaders } = config;
+    const { modelHeaders, externGenerator = generateExterns } = config;
 
-    return `#include "${name}.h"
+    // The segment externs are the N64's. Nothing is loaded or unloaded on the
+    // PSP, so its generator supplies none and the block is left out entirely
+    // rather than emitted empty.
+    const blocks = [
+        `#include "${name}.h"`,
+        generateIncludes(outputPath, modelHeaders),
+        externGenerator(modelHeaders),
+        generateModelList(outputPath, config),
+    ];
 
-${generateIncludes(outputPath, modelHeaders)}
-
-${generateExterns(modelHeaders)}
-
-${generateModelList(outputPath, config)}
-`;
+    return blocks.filter(block => block).join("\n\n") + "\n";
 }
 
 module.exports = {

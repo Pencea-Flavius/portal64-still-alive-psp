@@ -28,21 +28,17 @@ struct ColliderTypeData gBallLauncherCollider = {
 void ballLauncherRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct BallLauncher* launcher = (struct BallLauncher*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &launcher->rigidBody.transform, SCENE_SCALE);
 
     if (!matrix) {
         return;
     }
 
-    transformToMatrixL(&launcher->rigidBody.transform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, launcher->armature.numberOfBones);
+    RenderMatrices armature = skArmatureBuildTransforms(&launcher->armature, renderState);
 
     if (!armature) {
         return;
     }
-
-    skCalculateTransforms(&launcher->armature, armature);
 
     dynamicRenderListAddData(
         renderList,

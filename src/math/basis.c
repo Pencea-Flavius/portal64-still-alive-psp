@@ -9,7 +9,7 @@ void basisFromQuat(struct Basis* basis, struct Quaternion* quat) {
 }
 
 void basisRotate(struct Basis* basis, struct Vector3* input, struct Vector3* output) {
-    __assert(input != output);
+    portalAssert(input != output);
 
     vector3Scale(&basis->x, output, input->x);
     vector3AddScaled(output, &basis->y, input->y, output);
@@ -17,7 +17,7 @@ void basisRotate(struct Basis* basis, struct Vector3* input, struct Vector3* out
 }
 
 void basisUnRotate(struct Basis* basis, struct Vector3* input, struct Vector3* output) {
-    __assert(input != output);
+    portalAssert(input != output);
 
     output->x = vector3Dot(&basis->x, input);
     output->y = vector3Dot(&basis->y, input);

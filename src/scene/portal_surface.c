@@ -129,7 +129,19 @@ struct PortalSurface* portalSurfaceReplace(int portalSurfaceIndex, int roomIndex
         }
     }
 
+    // A collider on a room boundary is listed in both rooms, but the wall it
+    // maps to is drawn under only one of them. Hit from the other room, the
+    // wall was not found, no hole was cut, and the whole wall stayed in front
+    // of the view through the portal, fighting its face.
     if (staticIndex == range.max) {
+        for (staticIndex = 0; staticIndex < gCurrentLevel->staticContentCount; ++staticIndex) {
+            if (gCurrentLevel->staticContent[staticIndex].displayList == existing->triangles) {
+                break;
+            }
+        }
+    }
+
+    if (staticIndex == gCurrentLevel->staticContentCount) {
         portalSurfaceCleanup(with);
         return NULL;
     }

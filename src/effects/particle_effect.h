@@ -54,4 +54,8 @@ void particleEffectPlay(
 );
 void particleEffectUpdate(struct ParticleEffect* effect);
 
+// Drawing is declared in the platform's half, which the build puts on the
+// include path.
+#include "particle_effect_render.h"
+
 #endif

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <set>
 #include <assimp/scene.h>
 #include <memory>
 #include "./materials/Material.h"
@@ -31,6 +32,19 @@ struct DisplayListSettings {
     bool mExportGeometry;
     bool mIncludeCulling;
     bool mBonesAsVertexGroups;
+    // Emit PSP geometry instead of an F3DEX display list.
+    bool mTargetPsp;
+    // Materials already emitted as a list under this name are referenced as
+    // <name>_<material> instead of copied.
+    std::string mPspSharedMaterials;
+    // The names that list defines.
+    std::set<std::string> mPspSharedMaterialNames;
+    // Level parts in the default material carry none, so the game binds the
+    // static content's materialIndex (how signals swap indicator lights).
+    bool mPspPartMaterialFromScene;
+    // Only parts in the default material take the scene's (a decor object's,
+    // as for fizzling objects).
+    bool mPspDefaultMaterialFromScene;
     bool mTargetCIBuffer;
 
     aiVector3D mSortDirection;

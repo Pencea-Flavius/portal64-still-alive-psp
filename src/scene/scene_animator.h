@@ -2,6 +2,7 @@
 #define __SCENE_ANIMATOR_H__
 
 #include "audio/soundplayer.h"
+#include "graphics/render_types.h"
 #include "graphics/renderstate.h"
 #include "levels/level_definition.h"
 #include "sk64/skeletool_animator.h"
@@ -32,7 +33,9 @@ void sceneAnimatorInit(struct SceneAnimator* sceneAnimator, struct AnimationInfo
 void sceneAnimatorUpdate(struct SceneAnimator* sceneAnimator);
 
 void sceneAnimatorTransformForIndex(struct SceneAnimator* sceneAnimator, int index, struct Transform* result);
-Mtx* sceneAnimatorBuildTransforms(struct SceneAnimator* sceneAnimator, struct RenderState* renderState);
+// Lives in src/scene/n64/ beside skCalculateTransforms(), which does the work
+// and whose layout is the machine's.
+RenderMatrices sceneAnimatorBuildTransforms(struct SceneAnimator* sceneAnimator, struct RenderState* renderState);
 
 void sceneAnimatorPlay(struct SceneAnimator* sceneAnimator, int animatorIndex, int animationIndex, float speed, int flags);
 void sceneAnimatorSetSpeed(struct SceneAnimator* sceneAnimator, int animatorIndex, float speed);

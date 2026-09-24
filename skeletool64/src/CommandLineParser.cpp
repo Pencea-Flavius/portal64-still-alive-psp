@@ -28,6 +28,9 @@ bool parseCommandLineArguments(int argc, char *argv[], struct CommandLineArgumen
     output.mDefaultMaterial = "default";
     output.mForceMaterialName = "";
     output.mProcessAsModel = false;
+    output.mTargetPsp = false;
+    output.mPspSharedMaterials = "";
+    output.mPspDefaultMaterialFromScene = false;
     output.mFPS = 30.0f;
 
     std::string lastParameter = "";
@@ -60,6 +63,8 @@ bool parseCommandLineArguments(int argc, char *argv[], struct CommandLineArgumen
                 output.mDefaultMaterial = curr;
             } else if (lastParameter == "force-material") {
                 output.mForceMaterialName = curr;
+            } else if (lastParameter == "psp-shared-materials") {
+                output.mPspSharedMaterials = curr;
             } else if (lastParameter == "palette") {
                 output.mForcePalette = curr;
             } else if (lastParameter == "script") {
@@ -104,6 +109,12 @@ bool parseCommandLineArguments(int argc, char *argv[], struct CommandLineArgumen
             output.mExportGeometry = false;
         } else if (strcmp(curr, "--boneless") == 0) {
             output.mBonesAsVertexGroups = true;
+        } else if (strcmp(curr, "--psp") == 0) {
+            output.mTargetPsp = true;
+        } else if (strcmp(curr, "--psp-default-material-from-scene") == 0) {
+            output.mPspDefaultMaterialFromScene = true;
+        } else if (strcmp(curr, "--psp-shared-materials") == 0) {
+            lastParameter = "psp-shared-materials";
         } else if (strcmp(curr, "--default-material") == 0) {
             lastParameter = "default-material";
         } else if (strcmp(curr, "--force-material") == 0) {

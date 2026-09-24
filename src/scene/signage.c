@@ -107,26 +107,24 @@ static struct SignStateFrame gSignageFrames[] = {
 static short gCurrentSignageIndex = -1;
 static struct SignStateFrame gCurrentSignageFrame = {3, 3, 3, 3};
 
-static void signageSetLargeDigit(Vtx* vertices, int nextDigit, int currentDigit) {
-    int uOffset = (nextDigit - currentDigit) * (14 << 5);
+// Offsets in whole texels; the render half converts them.
 
-    for (int i = 0; i < 4; ++i) {
-        ((Vtx*)K0_TO_K1(vertices))[i].v.tc[0] += uOffset;
-    }
+#define LARGE_DIGIT_WIDTH   14
+
+static void signageSetLargeDigit(void* vertices, int nextDigit, int currentDigit) {
+    signageVertexOffsetUV(vertices, (nextDigit - currentDigit) * LARGE_DIGIT_WIDTH, 0);
 }
 
-#define U_COORD_FOR_DIGIT(digit) ((digit & 0x1) ? (18 << 5) : (4 << 5))
+// The small glyphs are two to a row, 14 x 18 with a 4 texel left margin.
+#define U_COORD_FOR_DIGIT(digit) ((digit & 0x1) ? 18 : 4)
+#define SMALL_DIGIT_HEIGHT  18
 
-static void signageSetSmallDigit(Vtx* vertices, int nextDigit, int currentDigit) {
-    // 14 x 18 + 4 + 0
-
-    int uOffset = U_COORD_FOR_DIGIT(nextDigit) - U_COORD_FOR_DIGIT(currentDigit);
-    int vOffset = ((nextDigit >> 1) - (currentDigit >> 1)) * (18 << 5);
-
-    for (int i = 0; i < 4; ++i) {
-        ((Vtx*)K0_TO_K1(vertices))[i].v.tc[0] += uOffset;
-        ((Vtx*)K0_TO_K1(vertices))[i].v.tc[1] += vOffset;
-    }
+static void signageSetSmallDigit(void* vertices, int nextDigit, int currentDigit) {
+    signageVertexOffsetUV(
+        vertices,
+        U_COORD_FOR_DIGIT(nextDigit) - U_COORD_FOR_DIGIT(currentDigit),
+        ((nextDigit >> 1) - (currentDigit >> 1)) * SMALL_DIGIT_HEIGHT
+    );
 }
 
 #define PROGRESS_MAX_INDEX  19
@@ -135,7 +133,7 @@ static void signageSetSmallDigit(Vtx* vertices, int nextDigit, int currentDigit)
 #define PROGRESS_X_LENGTH   142
 
 #define PROGRESS_U_START    0
-#define PROGRESS_U_LENGTH   2400
+#define PROGRESS_U_LENGTH   75
 
 static void signageSetProgress(int index, struct SignStateFrame signState) {
     float progressAmount = (signState.lcdColor == PROGRESS_ENABLE_LCD_COLOR_INDEX) ?
@@ -144,40 +142,26 @@ static void signageSetProgress(int index, struct SignStateFrame signState) {
 
     // Model X coordinates are decreasing and so we must subtract
     short xCoord = PROGRESS_X_START - (short)(progressAmount * (float)PROGRESS_X_LENGTH);
-    short uCoord = PROGRESS_U_START + (short)(progressAmount * (float)PROGRESS_U_LENGTH);
+    int uCoord = PROGRESS_U_START + (int)(progressAmount * (float)PROGRESS_U_LENGTH);
 
-    Vtx* vertices = (Vtx*)K0_TO_K1(props_signage_signage_num00_progress_color);
-    vertices[0].v.ob[0] = xCoord;
-    vertices[0].v.tc[0] = uCoord;
-
-    vertices[1].v.ob[0] = xCoord;
-    vertices[1].v.tc[0] = uCoord;
+    signageVertexSetProgress(props_signage_signage_num00_progress_color, xCoord, uCoord);
 }
 
-static Vtx* gDenominatorVertices[] = {
+static void* gDenominatorVertices[] = {
     props_signage_signage_num00_sdigit_denom_slash_color,
     props_signage_signage_num00_sdigit_denom_0_color,
     props_signage_signage_num00_sdigit_denom_10_color,
 };
 
-static void signageSetVertexColor(Vtx* vertices, struct Coloru8* color) {
-    for (int vIndex = 0; vIndex < 4; ++vIndex) {
-        ((Vtx*)K0_TO_K1(vertices))[vIndex].v.cn[0] = color->r;
-        ((Vtx*)K0_TO_K1(vertices))[vIndex].v.cn[1] = color->g;
-        ((Vtx*)K0_TO_K1(vertices))[vIndex].v.cn[2] = color->b;
-        ((Vtx*)K0_TO_K1(vertices))[vIndex].v.cn[3] = color->a;
-    }
-}
-
 static void signageSetDenominator(struct SignStateFrame signState) {
     struct Coloru8 useColor = gSymbolOnColors[signState.symbolOnColor];
 
     for (int i = 0; i < 3; ++i) {
-        signageSetVertexColor(gDenominatorVertices[i], &useColor);
+        signageVertexSetColor(gDenominatorVertices[i], &useColor);
     }
 }
 
-static Vtx* gWarningVertices[] = {
+static void* gWarningVertices[] = {
     props_signage_signage_num00_warn_0_color,
     props_signage_signage_num00_warn_1_color,
     props_signage_signage_num00_warn_2_color,
@@ -230,7 +214,7 @@ static void signageSetWarnings(int warningMask, struct SignStateFrame signState)
             gSymbolOnColors[signState.symbolOnColor] :
             gSymbolOffColors[signState.symbolOffColor];
 
-        signageSetVertexColor(gWarningVertices[i], &useColor);
+        signageVertexSetColor(gWarningVertices[i], &useColor);
     }
 }
 
@@ -261,9 +245,8 @@ static void signageCheckIndex(int neededIndex, struct SignStateFrame signState) 
     signageSetWarnings(gLevelWarnings[neededIndex], signState);
 }
 
-static void signageRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
-    struct Signage* signage = (struct Signage*)data;
-
+// The sign's frame and its two colours, for both render halves.
+void signageRenderPrepare(struct Signage* signage, struct Coloru8* backlightOut, struct Coloru8* lcdOut) {
     int frameIndex = signage->currentFrame;
 
     if (frameIndex == -1) {
@@ -274,33 +257,8 @@ static void signageRender(void* data, struct DynamicRenderDataList* renderList, 
 
     signageCheckIndex(signage->testChamberNumber, frame);
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
-
-    if (!matrix) {
-        return;
-    }
-
-    Gfx* model = renderStateAllocateDLChunk(renderState, 4);
-    Gfx* dl = model;
-
-    struct Coloru8 backlightColor = gBacklightColors[frame.backlightColor];
-    struct Coloru8 lcdColor = gLCDBlackColors[frame.lcdColor];
-
-    gDPSetPrimColor(dl++, 255, 255, backlightColor.r, backlightColor.g, backlightColor.b, backlightColor.a);
-    gDPSetEnvColor(dl++, lcdColor.r, lcdColor.g, lcdColor.b, lcdColor.a);
-    gSPDisplayList(dl++, props_signage_model_gfx);
-    gSPEndDisplayList(dl++);
-
-    transformToMatrixL(&signage->transform, matrix, SCENE_SCALE);
-
-    dynamicRenderListAddData(
-        renderList,
-        model,
-        matrix,
-        DEFAULT_INDEX,
-        &signage->transform.position,
-        NULL
-    );
+    *backlightOut = gBacklightColors[frame.backlightColor];
+    *lcdOut = gLCDBlackColors[frame.lcdColor];
 }
 
 void signageInit(struct Signage* signage, struct SignageDefinition* definition) {

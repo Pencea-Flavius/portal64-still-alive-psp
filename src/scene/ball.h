@@ -1,8 +1,11 @@
 #ifndef __SCENE_BALL_H__
 #define __SCENE_BALL_H__
 
+#include "graphics/render_types.h"
+
 #include "../physics/collision_object.h"
 
+#define BALL_RADIUS     0.1f
 #define BALL_VELOCITY   3.0f
 #define BALL_FADE_TIME  3.0f
 
@@ -15,7 +18,7 @@ enum BallFlags {
 };
 
 struct BallBurnMark {
-    Mtx matrix;
+    RenderMatrix matrix;
     struct Vector3 at;
     struct Vector3 normal;
     short dynamicId;
@@ -48,5 +51,8 @@ int ballIsCaught(struct Ball* ball);
 void ballMarkCaught(struct Ball* ball);
 
 int isColliderForBall(struct CollisionObject* collisionObject);
+
+// Drawing is split per machine; the build puts one of the two on the path.
+#include "ball_render.h"
 
 #endif

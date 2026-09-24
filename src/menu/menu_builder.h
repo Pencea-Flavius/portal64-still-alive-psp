@@ -59,6 +59,9 @@ struct MenuElementParams {
         struct {
             struct Font* font;
             short messageId;
+            // Shown instead of messageId when set, for an option with no
+            // translation.
+            char* message;
         } checkbox;
         struct {
             struct Font* font;
@@ -97,10 +100,13 @@ void menuBuilderInit(
 );
 enum InputCapture menuBuilderUpdate(struct MenuBuilder* menuBuilder);
 void menuBuilderRebuildText(struct MenuBuilder* menuBuilder);
-void menuBuilderRender(struct MenuBuilder* menuBuilder, struct RenderState* renderState);
 
 void menuBuilderSetCheckbox(struct MenuBuilderElement* element, int value);
 void menuBuilderSetFSlider(struct MenuBuilderElement* element, float value);
 void menuBuilderSetISlider(struct MenuBuilderElement* element, int value);
+
+// Everything that draws is declared in the platform's half, which the build
+// puts on the include path.
+#include "menu_builder_render.h"
 
 #endif

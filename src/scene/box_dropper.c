@@ -38,21 +38,17 @@ static void boxDropperPendingCubeTransform(struct BoxDropper* dropper, struct Tr
 static void boxDropperRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct BoxDropper* dropper = (struct BoxDropper*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &dropper->transform, SCENE_SCALE);
 
     if (!matrix) {
         return;
     }
 
-    transformToMatrixL(&dropper->transform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, PROPS_BOX_DROPPER_DEFAULT_BONES_COUNT);
+    RenderMatrices armature = skArmatureBuildTransforms(&dropper->armature, renderState);
 
     if (!armature) {
         return;
     }
-
-    skCalculateTransforms(&dropper->armature, armature);
 
     dynamicRenderListAddData(
         renderList,
@@ -76,13 +72,11 @@ static void boxDropperRender(void* data, struct DynamicRenderDataList* renderLis
         struct Transform pendingCubeTransform;
         boxDropperPendingCubeTransform(dropper, &pendingCubeTransform);
 
-        Mtx* pendingCubeMatrix = renderStateRequestMatrices(renderState, 1);
+        RenderMatrices pendingCubeMatrix = renderStateTransformToMatrices(renderState, &pendingCubeTransform, SCENE_SCALE);
 
         if (!pendingCubeMatrix) {
             return;
         }
-
-        transformToMatrixL(&pendingCubeTransform, pendingCubeMatrix, SCENE_SCALE);
 
         dynamicRenderListAddData(
             renderList,

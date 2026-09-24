@@ -16,4 +16,8 @@ void clockShowMainMenuTime(struct Clock* clock);
 
 void clockUpdate(struct Clock* clock);
 
+// The digits are scrolled per machine; the build puts one of the two on the
+// path.
+#include "clock_digits.h"
+
 #endif

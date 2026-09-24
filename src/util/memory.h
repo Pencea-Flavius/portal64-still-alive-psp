@@ -43,9 +43,17 @@ struct HeapSegmentFooter
 void heapInit(void* heapStart, void* heapEnd);
 void heapReset();
 void *cacheFreePointer(void* target);
-void *malloc(unsigned int size);
-void *realloc(void* target, unsigned int size);
-void free(void* target);
+
+// The game's allocator, over an arena reset on every level load. Named apart
+// from newlib's malloc, which the C runtime calls before main() on the PSP;
+// the macros below keep call sites saying malloc.
+void *portalMalloc(unsigned int size);
+void *portalRealloc(void* target, unsigned int size);
+void portalFree(void* target);
+
+#define malloc  portalMalloc
+#define realloc portalRealloc
+#define free    portalFree
 int calculateBytesFree();
 int calculateHeapSize();
 int calculateLargestFreeChunk();

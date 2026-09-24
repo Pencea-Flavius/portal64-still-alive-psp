@@ -240,8 +240,8 @@ void cutsceneRunnerStartStep(struct CutsceneRunner* runner) {
             struct Location* location = levelGetLocation(step->openPortal.locationIndex);
 
             if (step->openPortal.fromPedestal && gCurrentLevel->pedestalCount) {
-                struct Vector3 fireFrom = gScene.pedestals[0].transform.position;
-                fireFrom.y += 0.75f;
+                struct Vector3 fireFrom;
+                pedestalGunMuzzle(&gScene.pedestals[0], &fireFrom);
                 portalGunFireWorld(&gScene.portalGun, step->openPortal.portalIndex, &fireFrom, &location->transform.position, gScene.pedestals[0].roomIndex);
             } else {
                 struct Ray firingRay;

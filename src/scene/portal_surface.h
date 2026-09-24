@@ -3,6 +3,7 @@
 
 #include <ultra64.h>
 
+#include "graphics/render_types.h"
 #include "math/transform.h"
 #include "math/plane.h"
 #include "math/vector2s16.h"
@@ -33,8 +34,8 @@ struct PortalSurface {
     struct Vector3 up;
     struct Vector3 corner;
 
-    Vtx* gfxVertices;
-    Gfx* triangles;
+    RenderVertices gfxVertices;
+    RenderDisplayList triangles;
 };
 
 struct PortalSurfaceMappingRange {

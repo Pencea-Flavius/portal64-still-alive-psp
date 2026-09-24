@@ -1,7 +1,7 @@
 #ifndef __MENU_CONFIRMATION_DIALOG_H__
 #define __MENU_CONFIRMATION_DIALOG_H__
 
-#include "graphics/graphics.h"
+#include "graphics/render_types.h"
 #include "menu.h"
 
 typedef void (*ConfirmationDialogCallback)(void* data, int isConfirmed);
@@ -17,7 +17,7 @@ struct ConfirmationDialogParams {
 };
 
 struct ConfirmationDialog {
-    Gfx* menuOutline;
+    RenderDisplayList menuOutline;
     struct PrerenderedText* titleText;
     struct PrerenderedText* messageText;
     struct MenuButton confirmButton;
@@ -32,6 +32,9 @@ struct ConfirmationDialog {
 void confirmationDialogInit(struct ConfirmationDialog* confirmationDialog);
 void confirmationDialogShow(struct ConfirmationDialog* confirmationDialog, struct ConfirmationDialogParams* params);
 enum InputCapture confirmationDialogUpdate(struct ConfirmationDialog* confirmationDialog);
-void confirmationDialogRender(struct ConfirmationDialog* confirmationDialog, struct RenderState* renderState);
+
+// Drawing is declared in the platform's half, which the build puts on the
+// include path.
+#include "confirmation_dialog_render.h"
 
 #endif

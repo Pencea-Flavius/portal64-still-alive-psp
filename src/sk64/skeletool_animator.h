@@ -39,4 +39,10 @@ void skBlenderInit(struct SKAnimatorBlender* blender, int nBones);
 void skBlenderCleanup(struct SKAnimatorBlender* animator);
 void skBlenderUpdate(struct SKAnimatorBlender* blender, struct Transform* transforms, float deltaTime);
 
+// Where one frame of a clip's bone data is. A clip's frames pointer is a
+// segmented address on the N64, resolved against the animation segment the
+// linker placed; on the PSP the animations are linked and it is already a
+// pointer. Which of those it is is the machine's, so the build picks the half.
+const void* skAnimationFrameAt(struct SKAnimationClip* clip, int frameSize, int frame);
+
 #endif

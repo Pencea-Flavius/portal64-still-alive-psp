@@ -5,6 +5,8 @@
 
 #ifdef LIBDRAGON
     #include "libdragon/controller_buttons_libdragon.h"
+#elif defined(PSP)
+    #include "psp/controller_buttons_psp.h"
 #else
     #include "libultra/controller_buttons_libultra.h"
 #endif

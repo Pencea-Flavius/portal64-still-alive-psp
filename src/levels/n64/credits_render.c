@@ -1,0 +1,91 @@
+#include "levels/credits.h"
+
+#include "font/font.h"
+#include "font/liberation_mono.h"
+#include "system/display.h"
+#include "util/memory.h"
+
+#include "codegen/assets/materials/ui.h"
+
+void creditsRender(void* data, struct RenderState* renderState, struct GraphicsTask* task) {
+    struct Credits* credits = (struct Credits*)data;
+
+    gDPPipeSync(renderState->dl++);
+    gDPSetCycleType(renderState->dl++, G_CYC_FILL); 
+    gDPSetFillColor(renderState->dl++, 0);
+    gDPFillRectangle(renderState->dl++, 0, 0, SCREEN_WD - 1, SCREEN_HT - 1);
+
+    gDPPipeSync(renderState->dl++);
+    gDPSetCycleType(renderState->dl++, G_CYC_1CYCLE); 
+
+    struct Coloru8 color;
+    creditsTextColor(credits, &color);
+
+    gSPDisplayList(renderState->dl++, ui_material_list[DEFAULT_UI_INDEX]);
+
+    struct FontRenderer* renderer = stackMalloc(sizeof(struct FontRenderer));
+    fontRendererLayout(renderer, &gLiberationMonoFont, "THANK YOU FOR PARTICIPATING\nIN THIS\nENRICHMENT CENTER ACTIVITY!!\n\nIt is still in development.", SCREEN_WD);
+    renderState->dl = fontRendererBuildGfx(
+        renderer,
+        gLiberationMonoImages,
+        35,
+        36,
+        &color,
+        renderState->dl
+    );
+
+    fontRendererLayout(renderer, &gLiberationMonoFont, "-----------------------------------------", SCREEN_WD);
+    renderState->dl = fontRendererBuildGfx(
+        renderer,
+        gLiberationMonoImages,
+        14,
+        12,
+        &color,
+        renderState->dl
+    );
+    renderState->dl = fontRendererBuildGfx(
+        renderer,
+        gLiberationMonoImages,
+        14,
+        SCREEN_HT - 24,
+        &color,
+        renderState->dl
+    );
+
+    fontRendererLayout(renderer, &gLiberationMonoFont, "|\n|\n|\n|\n|\n|\n|\n|\n|\n|\n|\n|\n|\n|\n|\n|", SCREEN_WD);
+    renderState->dl = fontRendererBuildGfx(
+        renderer,
+        gLiberationMonoImages,
+        14,
+        24,
+        &color,
+        renderState->dl
+    );
+    renderState->dl = fontRendererBuildGfx(
+        renderer,
+        gLiberationMonoImages,
+        294,
+        24,
+        &color,
+        renderState->dl
+    );
+
+    fontRendererLayout(renderer, &gLiberationMonoFont, "GitHub", SCREEN_WD);
+    renderState->dl = fontRendererBuildGfx(
+        renderer,
+        gLiberationMonoImages,
+        74,
+        120,
+        &color,
+        renderState->dl
+    );
+
+    gSPDisplayList(renderState->dl++, ui_material_list[GITHUB_QR_INDEX]);
+    gSPTextureRectangle(renderState->dl++, 74 << 2, 138 << 2, (74 + 64) << 2, (138 + 64) << 2, G_TX_RENDERTILE, 0, 0, 1 << 9, 1 << 9);
+
+    gSPDisplayList(renderState->dl++, ui_material_list[CREDITS_ICONS_INDEX]);
+    gSPTextureRectangle(renderState->dl++, 34 << 2, 134 << 2, (34 + 32) << 2, (134 + 32) << 2, G_TX_RENDERTILE, 0, 0, 1 << 10, 1 << 10);
+
+    stackMallocFree(renderer);
+}
+

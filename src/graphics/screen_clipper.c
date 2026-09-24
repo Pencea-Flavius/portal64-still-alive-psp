@@ -25,8 +25,8 @@ void screenClipperInitWithCamera(struct ScreenClipper* clipper, struct Camera* c
 
     float viewProjection[4][4];
 
-    guMtxCatF(view, projection, viewProjection);
-    guMtxCatF(modelTransform, viewProjection, clipper->pointTransform);
+    matrixMul(view, projection, viewProjection);
+    matrixMul(modelTransform, viewProjection, clipper->pointTransform);
 }
 
 float determineClippingDistance(float x0, float x1, float w0, float w1) {

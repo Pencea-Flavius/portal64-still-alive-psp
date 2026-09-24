@@ -158,6 +158,14 @@ def generate_header(language_strings):
         f"    {k.upper()}," for k in language_strings[first_language]
     )
 
+    # A language's strings live in their own ROM segment on the N64, copied in
+    # when the language is chosen. They are linked and resident on the PSP, so
+    # a block is the values and nothing else.
+    string_block_segment_fields = "" if args.psp else (
+        f"    char* romStart;\n"
+        f"    char* romEnd;\n"
+    )
+
     return (
         f"#ifndef __STRINGS_H__\n"
         f"#define __STRINGS_H__\n"
@@ -167,8 +175,7 @@ def generate_header(language_strings):
         f"#define MAX_STRING_LENGTH      {max_message_length}\n"
         f"\n"
         f"struct StringBlock {{\n"
-        f"    char* romStart;\n"
-        f"    char* romEnd;\n"
+        f"{string_block_segment_fields}"
         f"    char** values;\n"
         f"}};\n"
         f"\n"
@@ -203,23 +210,36 @@ def generate_main_source_file(language_strings):
     )
 
     for language in language_strings:
-        output += (
-            f"extern char _strings_{language}SegmentRomStart[];\n"
-            f"extern char _strings_{language}SegmentRomEnd[];\n"
-            f"extern char* gStrings{capitalize(language)}[NUM_TRANSLATED_STRINGS];\n"
-            f"\n"
-        )
+        if args.psp:
+            output += (
+                f"extern char* gStrings{capitalize(language)}[NUM_TRANSLATED_STRINGS];\n"
+                f"\n"
+            )
+        else:
+            output += (
+                f"extern char _strings_{language}SegmentRomStart[];\n"
+                f"extern char _strings_{language}SegmentRomEnd[];\n"
+                f"extern char* gStrings{capitalize(language)}[NUM_TRANSLATED_STRINGS];\n"
+                f"\n"
+            )
 
     output += f"struct StringBlock StringLanguageBlocks[] = {{\n"
 
     for language in language_strings:
-        output += (
-            f"    {{\n"
-            f"        _strings_{language}SegmentRomStart,\n"
-            f"        _strings_{language}SegmentRomEnd,\n"
-            f"        gStrings{capitalize(language)},\n"
-            f"    }},\n"
-        )
+        if args.psp:
+            output += (
+                f"    {{\n"
+                f"        gStrings{capitalize(language)},\n"
+                f"    }},\n"
+            )
+        else:
+            output += (
+                f"    {{\n"
+                f"        _strings_{language}SegmentRomStart,\n"
+                f"        _strings_{language}SegmentRomEnd,\n"
+                f"        gStrings{capitalize(language)},\n"
+                f"    }},\n"
+            )
 
     output += f"}};"
     return output
@@ -394,6 +414,11 @@ def get_args():
     parser.add_argument(
         "--check-font",
         help="Provide font JSON file to output information about used characters"
+    )
+    parser.add_argument(
+        "--psp", action="store_true",
+        help="Emit for the PSP, where the strings are linked rather than kept "
+             "in a ROM segment that is copied in"
     )
 
     return parser.parse_args()

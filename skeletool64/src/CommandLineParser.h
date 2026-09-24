@@ -32,6 +32,11 @@ struct CommandLineArguments {
     bool mBonesAsVertexGroups;
     bool mTargetCIBuffer;
     bool mProcessAsModel;
+    bool mTargetPsp;
+    // Name of a material list this model's materials are already emitted in,
+    // so the geometry can reference them instead of carrying copies.
+    std::string mPspSharedMaterials;
+    bool mPspDefaultMaterialFromScene;
     aiVector3D mEulerAngles;
     aiVector3D mSortDirection;
 };

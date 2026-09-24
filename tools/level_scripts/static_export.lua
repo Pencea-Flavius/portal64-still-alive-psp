@@ -48,7 +48,63 @@ local function bb_union_cost(a, b)
     return union:area() - a:area() - b:area() + intersection:area()
 end
 
+local SAME_VERTEX_TOLERANCE = 0.0001
+
+-- Position and normal, so a wall's back is not taken for a copy of its front.
+local function has_vertex(mesh, vertex, normal)
+    for index, other in pairs(mesh.vertices) do
+        if (other - vertex):magnitudeSqrd() < SAME_VERTEX_TOLERANCE * SAME_VERTEX_TOLERANCE and
+            (mesh.normals[index] - normal):magnitudeSqrd() < SAME_VERTEX_TOLERANCE then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- Geometry exported twice (a wall in test chamber 09) is dropped; a portal
+-- would cut only one copy.
+local function is_duplicate(a, b)
+    if a.material_index ~= b.material_index or
+        a.transform_index ~= b.transform_index or
+        a.room_index ~= b.room_index or
+        #a.chunk.mesh.vertices ~= #b.chunk.mesh.vertices then
+        return false
+    end
+
+    for index, vertex in pairs(a.chunk.mesh.vertices) do
+        if not has_vertex(b.chunk.mesh, vertex, a.chunk.mesh.normals[index]) then
+            return false
+        end
+    end
+
+    return true
+end
+
+-- PSP: every part costs a fixed amount of CPU, so a room's static pieces of
+-- one material are merged even when not coplanar, except portal surfaces,
+-- signals, moving parts, precisely culled ones and decals. Merged parts stay
+-- under what the PSP clipper takes whole.
+local PSP_MERGE_MAX_VERTICES = 2048
+
+local function is_decal(entry)
+    local material = entry.chunk.mesh.material
+    return material and material.renderMode and material.renderMode.zMode == "ZMODE_DEC"
+end
+
+local function psp_can_merge(entry, other_entry)
+    return sk_input.settings.target_psp and
+        not is_decal(entry) and
+        #entry.chunk.mesh.vertices + #other_entry.chunk.mesh.vertices <= PSP_MERGE_MAX_VERTICES
+end
+
 local function insert_or_merge(static_list, new_entry)
+    for _, other_entry in pairs(static_list) do
+        if is_duplicate(new_entry, other_entry) then
+            return
+        end
+    end
+
     if not should_join_mesh(new_entry) then
         table.insert(static_list, new_entry)
         return
@@ -58,7 +114,7 @@ local function insert_or_merge(static_list, new_entry)
         if should_join_mesh(other_entry) and 
             other_entry.material_index == new_entry.material_index and
             other_entry.room_index == new_entry.room_index and 
-            is_coplanar(new_entry.chunk.mesh, other_entry.plane) then
+            (is_coplanar(new_entry.chunk.mesh, other_entry.plane) or psp_can_merge(new_entry, other_entry)) then
                 
             other_entry.chunk.mesh = other_entry.chunk.mesh:join(new_entry.chunk.mesh)
             other_entry.original_bb = other_entry.chunk.mesh.bb
@@ -153,7 +209,11 @@ local function list_static_nodes(nodes)
             local accept_portals = (portalable_material or accept_portals_override) and not no_portals
             local precise_culling = sk_scene.find_flag_argument(v.arguments, "precise_culling")
 
-            if transform_index or signal or accept_portals or precise_culling or not is_coplanar(chunkV.mesh, plane) then
+            local material = chunkV.mesh.material
+            local decal = material and material.renderMode and material.renderMode.zMode == "ZMODE_DEC"
+
+            if transform_index or signal or accept_portals or precise_culling or
+                (not is_coplanar(chunkV.mesh, plane) and (not sk_input.settings.target_psp or decal)) then
                 should_join_mesh = false
             end
     
@@ -400,8 +460,18 @@ local function process_static_nodes(nodes)
 
     sk_definition_writer.add_definition('static_bounding_boxes', 'struct RotatedBox[]', '_geo', static_bounding_boxes);
 
+    -- table.sort is not stable; on the PSP ties keep the listed order so portal
+    -- surface indices are the same every build. The N64 export is unchanged.
+    for index, entry in ipairs(result) do
+        entry.export_order = index
+    end
+
     table.sort(result, function(a, b)
-        return a.room_index < b.room_index
+        if a.room_index ~= b.room_index or not sk_input.settings.target_psp then
+            return a.room_index < b.room_index
+        end
+
+        return a.export_order < b.export_order
     end)
 
     local last_boundary = 1

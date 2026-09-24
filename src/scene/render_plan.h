@@ -2,7 +2,8 @@
 #define __SCENE_RENDER_PLAN_H__
 
 #include "graphics/screen_clipper.h"
-#include "graphics/graphics.h"
+#include "graphics/render_types.h"
+#include "graphics/renderstate.h"
 #include "scene.h"
 
 #define DEFAULT_FAR_PLANE       50.0f
@@ -23,7 +24,7 @@ struct RenderProps {
 
     struct CameraMatrixInfo cameraMatrixInfo; 
 
-    Vp* viewport;
+    RenderViewport viewport;
 
     u8 currentDepth;
     u8 exitPortalIndex;
@@ -57,6 +58,10 @@ struct RenderPlan {
 
 void renderPlanBuild(struct RenderPlan* renderPlan, struct Scene* scene, struct RenderState* renderState);
 
-void renderPlanExecute(struct RenderPlan* renderPlan, struct Scene* scene, Mtx* staticMatrices, struct Transform* staticTransforms, struct RenderState* renderState, struct GraphicsTask* task);
+// Drawing the plan is the platform's half, in
+// scene/{n64,psp}/render_plan_execute.c. The signature is the same on both
+// machines; what a stage does with its viewport, its fog and the portal covers
+// is not.
+void renderPlanExecute(struct RenderPlan* renderPlan, struct Scene* scene, RenderMatrices staticMatrices, struct Transform* staticTransforms, struct RenderState* renderState, struct GraphicsTask* task);
 
 #endif

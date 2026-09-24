@@ -1,7 +1,7 @@
 #include "render_scene.h"
 
 #include "levels/levels.h"
-#include "sk64/skeletool_defs.h"
+
 #include "util/memory.h"
 
 struct RenderScene* renderSceneNew(struct Transform* cameraTransform, struct RenderState *renderState, u64 visibleRooms) {
@@ -44,7 +44,7 @@ int renderSceneSortKey(int materialIndex, float distance) {
     return (materialIndex << 23) | (distanceScaled & 0x7FFFFF);
 }
 
-void renderSceneAdd(struct RenderScene* renderScene, Gfx* geometry, Mtx* matrix, int materialIndex, struct Vector3* at, Mtx* armature) {
+void renderSceneAdd(struct RenderScene* renderScene, ModelHandle geometry, RenderMatrices matrix, int materialIndex, struct Vector3* at, RenderMatrices armature) {
     if (renderScene->currentRenderPart == MAX_RENDER_PART_COUNT) {
         return;
     }
@@ -53,10 +53,23 @@ void renderSceneAdd(struct RenderScene* renderScene, Gfx* geometry, Mtx* matrix,
     part->geometry = geometry;
     part->matrix = matrix;
     part->armature = armature;
+#ifdef PSP
+    part->isAnimatedLevel = 0;
+#endif
     renderScene->materials[renderScene->currentRenderPart] = materialIndex;
     renderScene->sortKeys[renderScene->currentRenderPart] = renderSceneSortKey(materialIndex, planePointDistance(&renderScene->forwardPlane, at));
 
     ++renderScene->currentRenderPart;
+}
+
+void renderSceneMarkLastAnimatedLevel(struct RenderScene* renderScene) {
+#ifdef PSP
+    if (renderScene->currentRenderPart > 0) {
+        renderScene->renderParts[renderScene->currentRenderPart - 1].isAnimatedLevel = 1;
+    }
+#else
+    (void)renderScene;
+#endif
 }
 
 void renderSceneSort(struct RenderScene* renderScene, int min, int max) {
@@ -100,56 +113,5 @@ void renderSceneSort(struct RenderScene* renderScene, int min, int max) {
 
     for (output = min; output < max; ++output) {
         renderScene->renderOrder[output] = renderScene->renderOrderCopy[output];
-    }
-}
-
-void renderSceneGenerate(struct RenderScene* renderScene, struct RenderState* renderState) {
-    renderScene->renderOrder = stackMalloc(sizeof(short) * renderScene->currentRenderPart);
-    renderScene->renderOrderCopy = stackMalloc(sizeof(short) * renderScene->currentRenderPart);
-
-    for (int i = 0; i < renderScene->currentRenderPart; ++i) {
-        renderScene->renderOrder[i] = i;
-    }
-
-    renderSceneSort(renderScene, 0, renderScene->currentRenderPart);
-
-    int prevMaterial = -1;
-
-    gSPDisplayList(renderState->dl++, levelMaterialDefault());
-    
-    for (int i = 0; i < renderScene->currentRenderPart; ++i) {
-        int renderIndex = renderScene->renderOrder[i];
-
-        int materialIndex = renderScene->materials[renderIndex];
-    
-        if (materialIndex != prevMaterial && materialIndex != -1) {
-            if (prevMaterial != -1) {
-                gSPDisplayList(renderState->dl++, levelMaterialRevert(prevMaterial));
-            }
-
-            gSPDisplayList(renderState->dl++, levelMaterial(materialIndex));
-
-            prevMaterial = materialIndex;
-        }
-
-        struct RenderPart* renderPart = &renderScene->renderParts[renderIndex];
-
-        if (renderPart->matrix) {
-            gSPMatrix(renderState->dl++, renderPart->matrix, G_MTX_MODELVIEW | G_MTX_PUSH | G_MTX_MUL);
-        }
-
-        if (renderPart->armature) {
-            gSPSegment(renderState->dl++, MATRIX_TRANSFORM_SEGMENT, renderPart->armature);
-        }
-
-        gSPDisplayList(renderState->dl++, renderPart->geometry);
-
-        if (renderPart->matrix) {
-            gSPPopMatrix(renderState->dl++, G_MTX_MODELVIEW);
-        }
-    }
-
-    if (prevMaterial != -1) {
-        gSPDisplayList(renderState->dl++, levelMaterialRevert(prevMaterial));
     }
 }

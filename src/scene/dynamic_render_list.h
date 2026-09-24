@@ -1,17 +1,21 @@
 #ifndef __SCENE_DYNAMIC_RENDER_LIST_H__
 #define __SCENE_DYNAMIC_RENDER_LIST_H__
 
+#include "graphics/render_types.h"
 #include <ultra64.h>
 
 #include "graphics/render_scene.h"
 #include "math/vector3.h"
-#include "render_plan.h"
+
+// Only a pointer to a render stage is held here. render_plan.h is the portal
+// recursion's own header and reaches for the viewport type.
+struct RenderProps;
 
 struct DynamicRenderData {
-    Gfx* model;
-    Mtx* transform;
+    ModelHandle model;
+    RenderMatrices transform;
     struct Vector3 position;
-    Mtx* armature;
+    RenderMatrices armature;
     short materialIndex;
     short renderStageCullingMask;
 };
@@ -32,20 +36,20 @@ void dynamicRenderListFree(struct DynamicRenderDataList* list);
 
 void dynamicRenderListAddData(
     struct DynamicRenderDataList* list,
-    Gfx* model,
-    Mtx* transform,
+    ModelHandle model,
+    RenderMatrices transform,
     short materialIndex,
     struct Vector3* position,
-    Mtx* armature
+    RenderMatrices armature
 );
 
 void dynamicRenderListAddDataTouchingPortal(
     struct DynamicRenderDataList* list,
-    Gfx* model,
-    Mtx* transform,
+    ModelHandle model,
+    RenderMatrices transform,
     short materialIndex,
     struct Vector3* position,
-    Mtx* armature,
+    RenderMatrices armature,
     int rigidBodyFlags
 );
 

@@ -100,20 +100,17 @@ static void securityCameraLookAt(struct SecurityCamera* securityCamera, struct V
 static void securityCameraRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct SecurityCamera* securityCamera = (struct SecurityCamera*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &securityCamera->rigidBody.transform, SCENE_SCALE);
     if (!matrix) {
         return;
     }
 
-    transformToMatrixL(&securityCamera->rigidBody.transform, matrix, SCENE_SCALE);
+    securityCameraLookAt(securityCamera, &gScene.player.lookTransform.position);
 
-    Mtx* armature = renderStateRequestMatrices(renderState, PROPS_SECURITY_CAMERA_DEFAULT_BONES_COUNT);
+    RenderMatrices armature = skArmatureBuildTransforms(&securityCamera->armature, renderState);
     if (!armature) {
         return;
     }
-
-    securityCameraLookAt(securityCamera, &gScene.player.lookTransform.position);
-    skCalculateTransforms(&securityCamera->armature, armature);
 
     dynamicRenderListAddDataTouchingPortal(
         renderList,

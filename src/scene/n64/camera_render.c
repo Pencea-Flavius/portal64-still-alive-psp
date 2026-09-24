@@ -1,0 +1,97 @@
+#include "camera_render.h"
+
+#include "math/mathf.h"
+#include "math/matrix.h"
+#include "system/display.h"
+
+int cameraSetupMatrices(struct Camera* camera, struct RenderState* renderState, float aspectRatio, RenderViewport viewport, int extractClippingPlanes, struct CameraMatrixInfo* output) {
+    float view[4][4];
+    float persp[4][4];
+    float combined[4][4];
+
+    float scaleX = viewport->vp.vscale[0] * (1.0f / (SCREEN_WD << 1));
+    float scaleY = viewport->vp.vscale[1] * (1.0f / (SCREEN_HT << 1));
+
+    float centerX = ((float)viewport->vp.vtrans[0] - (SCREEN_WD << 1)) * (1.0f / (SCREEN_WD << 1));
+    float centerY = ((SCREEN_HT << 1) - (float)viewport->vp.vtrans[1]) * (1.0f / (SCREEN_HT << 1));
+
+    guOrthoF(combined, centerX - scaleX, centerX + scaleX, centerY - scaleY, centerY + scaleY, 1.0f, -1.0f, 1.0f);
+    cameraBuildProjectionMatrix(camera, view, &output->perspectiveNormalize, aspectRatio);
+    guMtxCatF(view, combined, persp);
+
+    cameraBuildViewMatrix(camera, view);
+    guMtxCatF(view, persp, combined);
+
+    if (!cameraIsValidMatrix(combined)) {
+        goto error;
+    }
+
+    output->projectionView = renderStateRequestMatrices(renderState, 1);
+
+    if (!output->projectionView) {
+        return 0;
+    }
+
+    guMtxF2L(combined, output->projectionView);
+
+    if (extractClippingPlanes) {
+        cameraExtractClippingPlane(combined, &output->cullingInformation.clippingPlanes[CLIPPING_PLANE_RIGHT],  0,  1.0f);
+        cameraExtractClippingPlane(combined, &output->cullingInformation.clippingPlanes[CLIPPING_PLANE_LEFT],   0, -1.0f);
+        cameraExtractClippingPlane(combined, &output->cullingInformation.clippingPlanes[CLIPPING_PLANE_TOP],    1,  1.0f);
+        cameraExtractClippingPlane(combined, &output->cullingInformation.clippingPlanes[CLIPPING_PLANE_BOTTOM], 1, -1.0f);
+        cameraExtractClippingPlane(combined, &output->cullingInformation.clippingPlanes[CLIPPING_PLANE_NEAR],   2,  1.0f);
+        output->cullingInformation.cameraPos = camera->transform.position;
+        output->cullingInformation.usedClippingPlaneCount = 5;
+    }
+
+    return 1;
+error:
+    return 0;
+}
+
+void cameraModifyProjectionViewForPortalGun(struct Camera* camera, struct RenderState* renderState, float newNearPlane, float aspectRatio)
+{
+    Mtx* portalGunProjectionView = renderStateRequestMatrices(renderState, 1);
+    if(!portalGunProjectionView)
+        return;
+    
+    struct Camera portalCam = *camera;
+    portalCam.nearPlane = newNearPlane;
+    portalCam.transform.position = gZeroVec;
+    float view[4][4];
+    float projectionView[4][4];
+    unsigned short perspectiveNormalize;
+    cameraBuildProjectionMatrix(&portalCam, projectionView, &perspectiveNormalize, aspectRatio);
+    cameraBuildViewMatrix(&portalCam, view);
+    guMtxCatF(view, projectionView, projectionView);
+    
+    guMtxF2L(projectionView, portalGunProjectionView);
+    gSPMatrix(renderState->dl++, osVirtualToPhysical(portalGunProjectionView), G_MTX_PROJECTION | G_MTX_LOAD | G_MTX_NOPUSH);
+    gSPPerspNormalize(renderState->dl++, perspectiveNormalize);
+}
+
+int cameraApplyMatrices(struct RenderState* renderState, struct CameraMatrixInfo* matrixInfo) {
+    Mtx* modelMatrix = renderStateRequestMatrices(renderState, 1);
+    
+    if (!modelMatrix) {
+        return 0;
+    }
+
+    guMtxIdent(modelMatrix);
+    gSPMatrix(renderState->dl++, osVirtualToPhysical(modelMatrix), G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_NOPUSH);
+
+    gSPMatrix(renderState->dl++, osVirtualToPhysical(matrixInfo->projectionView), G_MTX_PROJECTION | G_MTX_LOAD | G_MTX_NOPUSH);
+    gSPPerspNormalize(renderState->dl++, matrixInfo->perspectiveNormalize);
+
+    return 1;
+}
+
+// assuming projection matrix works as follows
+// a 0 0                    0
+// 0 b 0                    0
+// 0 0 (n + f) / (n - f)    2 * n * f / (n - f)
+// 0 0 -1                   0
+
+// distance should be a positive value not scaled by scene scale
+// returns -1 for the near plane
+// returns 1 for the far plane

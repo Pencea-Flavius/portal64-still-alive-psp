@@ -1,11 +1,15 @@
 #ifndef __STATIC_RENDER_H__
 #define __STATIC_RENDER_H__
 
+#include "graphics/render_types.h"
 #include "graphics/renderstate.h"
 #include "level_definition.h"
 #include "scene/camera.h"
 #include "scene/dynamic_render_list.h"
-#include "scene/render_plan.h"
+
+// Only pointers to a render stage are passed through here. render_plan.h is
+// the portal recursion's own header and reaches for the viewport type.
+struct RenderProps;
 
 void staticRenderDetermineVisibleRooms(
     struct RenderProps* renderStage,
@@ -19,7 +23,7 @@ void staticRender(
     struct RenderProps* renderStage,
     struct DynamicRenderDataList* dynamicList,
     int stageIndex,
-    Mtx* staticMatrices,
+    RenderMatrices staticMatrices,
     struct Transform* staticTransforms,
     struct RenderState* renderState
 );

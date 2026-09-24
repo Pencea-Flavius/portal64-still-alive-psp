@@ -56,20 +56,20 @@ void dynamicSceneSetPreciseCullingCallback(int id, DynamicCull callback);
 
 void dynamicRenderListAddData(
     struct DynamicRenderDataList* list,
-    Gfx* model,
-    Mtx* transform,
+    ModelHandle model,
+    RenderMatrices transform,
     short materialIndex,
     struct Vector3* position,
-    Mtx* armature
+    RenderMatrices armature
 );
 
 void dynamicRenderListAddDataTouchingPortal(
     struct DynamicRenderDataList* list,
-    Gfx* model,
-    Mtx* transform,
+    ModelHandle model,
+    RenderMatrices transform,
     short materialIndex,
     struct Vector3* position,
-    Mtx* armature,
+    RenderMatrices armature,
     int rigidBodyFlags
 );
 

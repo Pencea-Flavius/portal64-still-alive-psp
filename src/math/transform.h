@@ -13,7 +13,12 @@ struct Transform {
 
 void transformInitIdentity(struct Transform* in);
 void transformToMatrix(struct Transform* in, float mtx[4][4], float sceneScale);
+#ifndef PSP
+// Produces an RSP matrix, which only the N64 renderer has any use for.
+// The L suffix already said as much; this keeps the type out of headers
+// the rest of the engine includes.
 void transformToMatrixL(struct Transform* in, Mtx* mtx, float sceneScale);
+#endif
 void transformInvert(struct Transform* in, struct Transform* out);
 void transformPoint(struct Transform* transform, struct Vector3* in, struct Vector3* out);
 void transformPointNoScale(struct Transform* transform, struct Vector3* in, struct Vector3* out);

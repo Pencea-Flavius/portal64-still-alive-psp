@@ -22,6 +22,20 @@ enum HudFlags {
     HudFlagsSubtitleQueued = (1 << 4),
 };
 
+// The crosshair and subtitle box, in pixels; each half converts them.
+#define HUD_OUTER_WIDTH             24
+#define HUD_OUTER_HEIGHT            32
+
+#define HUD_OUTER_OFFSET_X          3
+#define HUD_OUTER_OFFSET_Y          5
+
+#define RETICLE_WIDTH               16
+#define RETICLE_HEIGHT              16
+
+#define SUBTITLE_MARGIN_X           17
+#define SUBTITLE_MARGIN_Y           11
+#define SUBTITLE_PADDING            6
+
 struct Hud {
     enum CutscenePromptType promptType;
     enum StringId subtitleId;
@@ -58,6 +72,12 @@ void hudResolveSubtitle(struct Hud* hud);
 void hudShowColoredOverlay(struct Hud* hud, struct Coloru8* color, float duration, float fadeStartTime);
 
 int hudOverlayVisible(struct Hud* hud, struct Player* player);
-void hudRender(struct Hud* hud, struct Player* player, struct RenderState* renderState);
+
+// A cutscene prompt's control and string, for both halves.
+extern enum ControllerAction gHudPromptActions[];
+extern enum StringId gHudPromptText[];
+
+// Drawing is declared in the platform's half.
+#include "hud_render.h"
 
 #endif

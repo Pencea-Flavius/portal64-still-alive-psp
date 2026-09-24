@@ -157,3 +157,7 @@ int sramRead(const void* sramAddr, void* ramAddr, const int size) {
     usleep(SRAM_DELAY_USECS);
     return 1;
 }
+
+int romIsInMemory(const void* address) {
+    return IS_KSEG0(address);
+}

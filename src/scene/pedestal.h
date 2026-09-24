@@ -35,5 +35,9 @@ void pedestalHide(struct Pedestal* pedestal);
 void pedestalPointAt(struct Pedestal* pedestal, struct Vector3* target, int playShootingSound);
 
 void pedestalSetDown(struct Pedestal* pedestal);
+void pedestalGunMuzzle(struct Pedestal* pedestal, struct Vector3* out);
+
+// Drawing is split per machine; the build puts one of the two on the path.
+#include "pedestal_render.h"
 
 #endif

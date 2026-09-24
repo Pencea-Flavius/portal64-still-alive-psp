@@ -1,34 +1,60 @@
 #ifndef __MENU_MENU_H__
 #define __MENU_MENU_H__
 
-#include <ultra64.h>
-
 #include "font/font.h"
 #include "graphics/color.h"
-#include "graphics/graphics.h"
+#include "graphics/render_types.h"
+#include "graphics/renderstate.h"
 
-#define CHECKBOX_SIZE   12
+// Widget geometry, shared by both machines.
+#define CHECKBOX_SIZE           12
+
+#define BUTTON_LEFT_PADDING     4
+#define BUTTON_RIGHT_PADDING    9
+#define BUTTON_TOP_PADDING      2
+
+// The options box, centred; wider on the PSP to fit all five tabs. Here
+// because the pages inside it include options_menu.h.
+#ifdef PSP
+#define OPTIONS_MENU_WIDTH  400
+#else
+#define OPTIONS_MENU_WIDTH  280
+#endif
+#define OPTIONS_MENU_HEIGHT 200
+#define OPTIONS_MENU_LEFT   ((SCREEN_WD - OPTIONS_MENU_WIDTH) / 2)
+#define OPTIONS_MENU_TOP    ((SCREEN_HT - OPTIONS_MENU_HEIGHT) / 2)
+
+// Where an options page starts, below the tabs.
+#define OPTIONS_PAGE_TOP    (OPTIONS_MENU_TOP + 34)
+
+#define SLIDER_TRACK_HEIGHT     4
+#define SLIDER_HEIGHT           12
+#define SLIDER_WIDTH            6
+#define TICK_Y                  11
+#define TICK_HEIGHT             3
 
 struct MenuButton {
-    Gfx* outline;
+    RenderDisplayList outline;
     struct PrerenderedText* text;
     short x, y;
     short w, h;
 };
 
 struct MenuCheckbox {
-    Gfx* outline;
+    RenderDisplayList outline;
     struct PrerenderedText* prerenderedText;
-    Gfx* checkedIndicator;
+    RenderDisplayList checkedIndicator;
     short x, y;
     short checked;
 };
 
 struct MenuSlider {
-    Gfx* back;
+    RenderDisplayList back;
     float value;
     short x, y;
     short w;
+    // The N64 bakes the ticks in; the PSP needs their count.
+    short tickCount;
 };
 
 enum InputCapture {
@@ -36,9 +62,6 @@ enum InputCapture {
     InputCaptureGrab,
     InputCaptureExit,
 };
-
-#define GFX_ENTRIES_PER_IMAGE   3
-#define GFX_ENTRIES_PER_END_DL  1
 
 extern struct Coloru8 gSelectionOrange;
 extern struct Coloru8 gSelectionGray;
@@ -48,26 +71,18 @@ extern struct Coloru8 gBorderDark;
 
 struct PrerenderedText* menuBuildPrerenderedText(struct Font* font, char* message, int x, int y, int maxWidth);
 
-Gfx* menuRerenderBorder(int x, int y, int width, int height, Gfx* dl);
-Gfx* menuBuildBorder(int x, int y, int width, int height);
-Gfx* menuBuildHorizontalLine(int x, int y, int width);
-Gfx* menuRerenderSolidBorder(int x, int y, int w, int h, int nx, int ny, int nw, int nh, Gfx* dl);
-Gfx* menuBuildSolidBorder(int x, int y, int w, int h, int nx, int ny, int nw, int nh);
-Gfx* menuBuildOutline(int x, int y, int width, int height, int invert);
-
 struct MenuButton menuBuildButton(struct Font* font, char* message, int x, int y, int height, int rightAlign);
-void menuSetRenderColor(struct RenderState* renderState, int isSelected, struct Coloru8* selected, struct Coloru8* defaultColor);
 void menuRebuildButtonText(struct MenuButton* button, struct Font* font, char* message, int rightAlign);
 void menuRelocateButton(struct MenuButton* button, int x, int y, int rightAlign);
 
 struct MenuCheckbox menuBuildCheckbox(struct Font* font, char* message, int x, int y);
-Gfx* menuCheckboxRender(struct MenuCheckbox* checkbox, Gfx* dl);
-
 struct MenuSlider menuBuildSlider(int x, int y, int w, int tickCount);
-Gfx* menuSliderRender(struct MenuSlider* slider, Gfx* dl);
 
 void menuFreePrerenderedDeferred(struct PrerenderedText* text);
 void menuTickDeferredQueue();
 void menuResetDeferredQueue();
+
+// Drawing is declared in the platform's half.
+#include "menu_render.h"
 
 #endif

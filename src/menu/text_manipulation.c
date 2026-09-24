@@ -1,5 +1,7 @@
 #include "text_manipulation.h"
 
+#include <stdio.h>
+
 #include <ultra64.h>
 
 #include "strings/translations.h"

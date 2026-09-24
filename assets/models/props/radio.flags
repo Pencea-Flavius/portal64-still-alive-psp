@@ -1,1 +1,1 @@
--m assets/materials/static.skm.yaml --default-material radio
+-m assets/materials/static.skm.yaml --default-material radio --psp-default-material-from-scene

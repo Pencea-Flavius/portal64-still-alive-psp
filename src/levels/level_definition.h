@@ -1,6 +1,7 @@
 #ifndef __LEVEL_DEFINITION_H__
 #define __LEVEL_DEFINITION_H__
 
+#include "graphics/render_types.h"
 #include "effects/effect_definitions.h"
 #include "math/box3d.h"
 #include "math/boxs16.h"
@@ -31,7 +32,7 @@ struct StaticIndex {
 };
 
 struct StaticContentElement {
-    Gfx* displayList;
+    ModelHandle displayList;
     struct Vector3 center;
     u8 materialIndex;
     u8 transformIndex;

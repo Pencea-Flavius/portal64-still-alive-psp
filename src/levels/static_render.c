@@ -1,5 +1,7 @@
 #include "static_render.h"
 
+#include "scene/render_plan.h"
+
 #include "graphics/render_scene.h"
 #include "levels.h"
 #include "math/mathf.h"
@@ -56,7 +58,7 @@ void staticRenderTraverseIndex(
 
 #define ANIMATED_CULL_THRESHOLD     50
 
-void staticRenderPopulateRooms(struct FrustumCullingInformation* cullingInfo, Mtx* staticMatrices, struct Transform* staticTransforms, struct RenderScene* renderScene) {
+void staticRenderPopulateRooms(struct FrustumCullingInformation* cullingInfo, RenderMatrices staticMatrices, struct Transform* staticTransforms, struct RenderScene* renderScene) {
     int currentRoom = 0;
 
     u64 visibleRooms = renderScene->visibleRooms;
@@ -79,7 +81,16 @@ void staticRenderPopulateRooms(struct FrustumCullingInformation* cullingInfo, Mt
             // For rooms with with many animated elements, calculating whether
             // or not to cull them is more expensive than just rendering them
             short animatedElementCount = roomIndex->animatedRange.max - roomIndex->animatedRange.min;
+#ifdef PSP
+            // Not on the PSP, where every part drawn costs the CPU its matrix,
+            // its bind and its edge test: chamber 14's 53 stair steps were
+            // drawn whole in every view, through portals far outside the
+            // portal's oval, since the GE's own test only knows the screen.
+            (void)animatedElementCount;
+            u8 shouldCull = 1;
+#else
             u8 shouldCull = animatedElementCount < ANIMATED_CULL_THRESHOLD;
+#endif
 
             for (int i = roomIndex->animatedRange.min; i < roomIndex->animatedRange.max; ++i, ++animatedBox) {
                 struct StaticContentElement* staticElement = &gCurrentLevel->staticContent[i];
@@ -101,11 +112,12 @@ void staticRenderPopulateRooms(struct FrustumCullingInformation* cullingInfo, Mt
                 renderSceneAdd(
                     renderScene, 
                     staticElement->displayList, 
-                    &staticMatrices[staticElement->transformIndex], 
+                    renderMatricesAt(staticMatrices, staticElement->transformIndex), 
                     staticElement->materialIndex, 
                     &center, 
                     NULL
                 );
+                renderSceneMarkLastAnimatedLevel(renderScene);
             }
         }
 
@@ -175,7 +187,7 @@ int staticRenderIsRoomVisible(u64 visibleRooms, u16 roomIndex) {
     return (visibleRooms & (1LL << roomIndex)) != 0;
 }
 
-void staticRender(struct RenderProps* renderStage, struct DynamicRenderDataList* dynamicList, int stageIndex, Mtx* staticMatrices, struct Transform* staticTransforms, struct RenderState* renderState) {
+void staticRender(struct RenderProps* renderStage, struct DynamicRenderDataList* dynamicList, int stageIndex, RenderMatrices staticMatrices, struct Transform* staticTransforms, struct RenderState* renderState) {
     if (!gCurrentLevel) {
         return;
     }

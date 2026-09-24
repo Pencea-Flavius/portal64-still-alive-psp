@@ -7,6 +7,14 @@ set(GENERATE_STRINGS  "${TOOLS_DIR}/text/generate_strings.py")
 ## Translations ##
 ##################
 
+# A language lives in its own ROM segment on the N64 and is linked on the PSP,
+# so the block the generator emits differs. An empty variable expands to no
+# argument at all, which a generator expression does not.
+set(STRINGS_PSP_FLAG "")
+if (NOT N64)
+    set(STRINGS_PSP_FLAG "--psp")
+endif()
+
 set(STRING_INPUT_FILES "")
 
 set(STRINGS_H "${BUILD_STRINGS_DIR}/strings.h")
@@ -45,6 +53,7 @@ add_custom_command(
         --extra-translations-dir ${CMAKE_CURRENT_SOURCE_DIR}
         --output-dir ${BUILD_STRINGS_DIR}
         --check-font ${FONT_DEF}
+        ${STRINGS_PSP_FLAG}
     COMMENT
         "Generating strings"
     VERBATIM

@@ -48,27 +48,37 @@ struct ColliderTypeData gButtonCollider = {
 void buttonRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct Button* button = (struct Button*)data;
 
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
+    // The button does not rotate, so its placement is a transform with an
+    // identity rotation rather than a translation matrix built by hand.
+    struct Transform placement;
+    transformInitIdentity(&placement);
+    placement.position = button->originalPos;
+
+    RenderMatrices matrix = renderStateTransformToMatrices(renderState, &placement, SCENE_SCALE);
 
     if (!matrix) {
         return;
     }
 
-    guTranslate(matrix, button->originalPos.x * SCENE_SCALE, button->originalPos.y * SCENE_SCALE, button->originalPos.z * SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, PROPS_BUTTON_DEFAULT_BONES_COUNT);
+    RenderMatrices armature = renderStateRequestMatrixBlock(renderState, PROPS_BUTTON_DEFAULT_BONES_COUNT);
 
     if (!armature) {
         return;
     }
 
+    // Two bones posed directly rather than from a clip, so the block is
+    // filled here. Its layout is the machine's, hence renderMatricesAt().
     struct SKArmatureWithAnimations* armatureDef = dynamicAssetAnimatedModel(PROPS_BUTTON_DYNAMIC_ANIMATED_MODEL);
 
-    transformToMatrixL(&armatureDef->armature->pose[PROPS_BUTTON_BUTTONBASE_BONE], &armature[PROPS_BUTTON_BUTTONBASE_BONE], 1.0f);
+    renderMatrixFromTransform(
+        renderMatricesAt(armature, PROPS_BUTTON_BUTTONBASE_BONE),
+        &armatureDef->armature->pose[PROPS_BUTTON_BUTTONBASE_BONE], 1.0f);
 
     // reusing global memory
     armatureDef->armature->pose[PROPS_BUTTON_BUTTONPAD_BONE].position.y = (button->rigidBody.transform.position.y - button->originalPos.y) * SCENE_SCALE;
-    transformToMatrixL(&armatureDef->armature->pose[PROPS_BUTTON_BUTTONPAD_BONE], &armature[PROPS_BUTTON_BUTTONPAD_BONE], 1.0f);
+    renderMatrixFromTransform(
+        renderMatricesAt(armature, PROPS_BUTTON_BUTTONPAD_BONE),
+        &armatureDef->armature->pose[PROPS_BUTTON_BUTTONPAD_BONE], 1.0f);
 
     dynamicRenderListAddData(renderList, armatureDef->armature->displayList, matrix, BUTTON_INDEX, &button->rigidBody.transform.position, armature);
 }

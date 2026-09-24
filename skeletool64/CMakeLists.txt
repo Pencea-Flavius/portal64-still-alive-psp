@@ -35,6 +35,8 @@ add_executable(skeletool64
     src/FileUtils.cpp
     src/MathUtil.cpp
     src/MeshWriter.cpp
+    src/psp/PspMaterialWriter.cpp
+    src/psp/PspMeshWriter.cpp
     src/RCPState.cpp
     src/RenderChunk.cpp
     src/RenderChunkOrder.cpp

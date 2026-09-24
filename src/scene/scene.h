@@ -9,8 +9,6 @@
 #include "point_light.h"
 #include "portal.h"
 #include "scene_animator.h"
-#include "shadow_renderer.h"
-#include "shadow_map.h"
 
 #include "ball_catcher.h"
 #include "ball_launcher.h"
@@ -111,7 +109,6 @@ struct GraphicsTask;
 
 void sceneInit(struct Scene* scene);
 void sceneInitNoPauseMenu(struct Scene* scene, int mainMenuMode);
-void sceneRender(struct Scene* scene, struct RenderState* renderState, struct GraphicsTask* task);
 void sceneUpdate(struct Scene* scene);
 void sceneQueueCheckpoint(struct Scene* scene);
 
@@ -120,5 +117,9 @@ int sceneFirePortal(struct Scene* scene, struct Ray* ray, struct Vector3* player
 int sceneClosePortal(struct Scene* scene, int portalIndex, int playSound);
 
 void sceneGetCoveredDoorways(struct Scene* scene, struct Vector3* viewPosition, u64* coveredDoorways);
+
+// Drawing is declared in the platform's half, which the build puts on the
+// include path.
+#include "scene_render.h"
 
 #endif

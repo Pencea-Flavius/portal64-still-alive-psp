@@ -93,4 +93,16 @@ void turretDelete(struct Turret* turret);
 struct Quaternion* turretGetLookRotation(struct Turret* turret);
 void turretOnDeserialize(struct Turret* turret);
 
+// Drawing is split per machine; the build puts one of the two on the path.
+// What both halves work out first is shared.
+int turretRenderPrepare(
+    struct Turret* turret,
+    struct RenderState* renderState,
+    RenderMatrices* matrixOut,
+    RenderMatrices* armatureOut,
+    int* eyeFadeOut
+);
+
+#include "turret_render.h"
+
 #endif

@@ -10,7 +10,7 @@
 
 #define TRAIL_LENGTH    8.0f
 #define FADE_IN_LENGTH  4.0f
-#define SEGMENT_LENGTH  2.0f
+#define SEGMENT_LENGTH  PORTAL_TRAIL_SEGMENT_LENGTH
 #define SEGMENT_ROTATION    (152 * M_PI / 180.0f)
 
 struct Transform gTrailSectionOffset = {
@@ -21,9 +21,9 @@ struct Transform gTrailSectionOffset = {
 
 void portalTrailInit(struct PortalTrail* trail) {
     quatAxisAngle(&gForward, SEGMENT_ROTATION, &gTrailSectionOffset.rotation);
-    transformToMatrixL(&gTrailSectionOffset, &trail->sectionOffset, SCENE_SCALE);
-    guMtxIdent(&trail->baseTransform[0]);
-    guMtxIdent(&trail->baseTransform[1]);
+    renderMatrixFromTransform(&trail->sectionOffset, &gTrailSectionOffset, SCENE_SCALE);
+    renderMatrixIdentity(&trail->baseTransform[0]);
+    renderMatrixIdentity(&trail->baseTransform[1]);
 
     trail->currentBaseTransform = 0;
     trail->lastDistance = 0.0f;
@@ -32,8 +32,8 @@ void portalTrailInit(struct PortalTrail* trail) {
 
 void portalTrailUpdateBaseTransform(struct PortalTrail* trail) {
     trail->currentBaseTransform ^= 1;
-    transformToMatrixL(&trail->trailTransform, &trail->baseTransform[trail->currentBaseTransform], SCENE_SCALE);
-    osWritebackDCache(&trail->baseTransform[trail->currentBaseTransform], sizeof(Mtx));
+    renderMatrixFromTransform(&trail->baseTransform[trail->currentBaseTransform], &trail->trailTransform, SCENE_SCALE);
+    renderMatrixFlush(&trail->baseTransform[trail->currentBaseTransform]);
 }
 
 void portalTrailPlay(struct PortalTrail* trail, struct Vector3* from, struct Vector3* to) {
@@ -81,14 +81,13 @@ struct Coloru8 gTrailColor[] = {
     {50, 70, 200, 255},
 };
 
-void portalTrailRender(struct PortalTrail* trail, struct RenderState* renderState, struct MaterialState* materialState, struct Camera* fromCamera, int portalIndex) {
+
+// The trail's fog distances, colour and fade in, for both render halves.
+// Returns 0 when the trail is done and nothing should be drawn.
+int portalTrailPrepareFade(struct PortalTrail* trail, struct Camera* fromCamera, int portalIndex, struct PortalTrailFade* out) {
     if (trail->lastDistance >= trail->maxDistance + TRAIL_LENGTH) {
-        return;
+        return 0;
     }
-
-    materialStateSet(materialState, PORTAL_TRAIL_INDEX, renderState);
-
-    struct Coloru8* color = &gTrailColor[portalIndex];
 
     struct Ray cameraRay;
     cameraRay.origin = fromCamera->transform.position;
@@ -127,27 +126,11 @@ void portalTrailRender(struct PortalTrail* trail, struct RenderState* renderStat
         }
     }
 
-    gSPFogPosition(renderState->dl++, minDistance, maxDistance);
-    gDPSetPrimColor(renderState->dl++, 255, 255, color->r, color->g, color->b, alpha);
-    gSPMatrix(renderState->dl++, &trail->baseTransform[trail->currentBaseTransform], G_MTX_MODELVIEW | G_MTX_PUSH | G_MTX_MUL);
+    out->minDistance = minDistance;
+    out->maxDistance = maxDistance;
+    out->color = gTrailColor[portalIndex];
+    out->alpha = (unsigned char)alpha;
+    out->startDistance = currentDistance;
 
-    int hasMore = 1;
-
-    while (hasMore) {
-        currentDistance += SEGMENT_LENGTH;
-
-        hasMore = currentDistance < trail->lastDistance && currentDistance < trail->maxDistance;
-
-        if (currentDistance <= 0.0f) {
-            continue;
-        }
-
-        gSPDisplayList(renderState->dl++, portal_gun_ball_trail_model_gfx);
-
-        if (hasMore) {
-            gSPMatrix(renderState->dl++, &trail->sectionOffset, G_MTX_MODELVIEW | G_MTX_NOPUSH | G_MTX_MUL);
-        }
-    }
-
-    gSPPopMatrix(renderState->dl++, G_MTX_MODELVIEW);
+    return 1;
 }

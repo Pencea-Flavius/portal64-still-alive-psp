@@ -1,4 +1,5 @@
 #include "player.h"
+#include "scene/scene.h"
 
 #include "player/grab_rotation.h"
 #include "player_rumble_clips.h"
@@ -20,11 +21,11 @@
 
 #include "codegen/assets/materials/static.h"
 #include "codegen/assets/models/player/chell.h"
-#include "codegen/assets/models/portal_gun/w_portalgun.h"
 
 #define STEP_TIME               0.35f
 
 #define STAND_SPEED             1.5f
+#define PLAYER_CROUCH_DROP      0.25f
 #define SHAKE_DISTANCE          0.02f
 
 #define DAMAGE_OVERLAY_TIME     0.5f
@@ -123,6 +124,12 @@ static struct SKAnimationClip* sPlayerRunEClips[] = {
     &player_chell_Armature_rune_portalgun_clip,
 };
 
+// The standing pose the runs are blended towards as the player slows down.
+static struct SKAnimationClip* sPlayerRunCClips[] = {
+    &player_chell_Armature_runc_clip,
+    &player_chell_Armature_runc_portalgun_clip,
+};
+
 static struct SKAnimationClip* sPlayerJumpClips[] = {
     &player_chell_Armature_standing_jump_clip,
     &player_chell_Armature_standing_jump_portalgun_clip,
@@ -185,66 +192,6 @@ static struct SKAnimationClip* playerDetermineNextClip(
             return sPlayerRunWClips[clipOffset];
         }
     }
-}
-
-static void playerRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
-    struct Player* player = (struct Player*)data;
-
-    Mtx* matrix = renderStateRequestMatrices(renderState, 1);
-
-    if (!matrix) {
-        return;
-    }
-
-    struct Transform finalPlayerTransform;
-
-    struct Vector3 forwardVector;
-    struct Vector3 unusedRight;
-
-    playerGetMoveBasis(&player->lookTransform.rotation, &forwardVector, &unusedRight);
-
-    finalPlayerTransform.position = player->body.transform.position;
-    quatLook(&forwardVector, &gUp, &finalPlayerTransform.rotation);
-    finalPlayerTransform.scale = gOneVec;
-
-    finalPlayerTransform.position.y -= PLAYER_HEAD_HEIGHT;
-
-    transformToMatrixL(&finalPlayerTransform, matrix, SCENE_SCALE);
-
-    Mtx* armature = renderStateRequestMatrices(renderState, PLAYER_CHELL_DEFAULT_BONES_COUNT);
-
-    if (!armature) {
-        return;
-    }
-
-    skCalculateTransforms(&player->armature, armature);
-
-    Gfx* gunGfx = portal_gun_w_portalgun_model_gfx;
-    Gfx** gunAttachment = (player->flags & (PlayerHasFirstPortalGun | PlayerHasSecondPortalGun))
-        ? &gunGfx
-        : NULL;
-    Gfx* attachments = skBuildAttachments(&player->armature, gunAttachment, renderState);
-
-    Gfx* objectRender = renderStateAllocateDLChunk(renderState, 4);
-    Gfx* dl = objectRender;
-
-    if (attachments) {
-        gSPSegment(dl++, BONE_ATTACHMENT_SEGMENT,  osVirtualToPhysical(attachments));
-    }
-    gSPSegment(dl++, MATRIX_TRANSFORM_SEGMENT,  osVirtualToPhysical(armature));
-    gSPDisplayList(dl++, player->armature.displayList);
-    gSPEndDisplayList(dl++);
-
-
-    dynamicRenderListAddDataTouchingPortal(
-        renderList,
-        objectRender,
-        matrix,
-        DEFAULT_INDEX,
-        &player->body.transform.position,
-        armature,
-        player->body.flags
-    );
 }
 
 static void playerHandleCollideStartEnd(struct CollisionObject* object, struct CollisionObject* other, struct Vector3* normal) {
@@ -675,12 +622,15 @@ static void playerProcessInput(struct Player* player, struct Vector3* forward, s
     controllerActionGetDirection(ControllerActionMove, moveInput);
     controllerActionGetDirection(ControllerActionRotate, lookInput);
 
+#ifndef PSP
+    // The PSP's tank controls are a layout: controllerActionSetTankSources().
     if (gSaveData.controls.flags & ControlSaveFlagsTankControls) {
         float tmp;
         tmp = moveInput->y;
         moveInput->y = lookInput->y;
         lookInput->y = tmp;
     }
+#endif
 
     vector2Normalize(moveInput, moveInput);
 
@@ -896,6 +846,10 @@ static void playerMove(struct Player* player, struct Vector2* moveInput, struct 
 
 #define FOOTING_CAST_DISTANCE   (PLAYER_HEAD_HEIGHT + 0.2f)
 
+float playerStandHeight(struct Player* player) {
+    return (player->flags & PlayerCrouched) ? PLAYER_HEAD_HEIGHT - PLAYER_CROUCH_DROP : PLAYER_HEAD_HEIGHT;
+}
+
 void playerUpdateFooting(struct Player* player, float maxStandDistance) {
     // Clamp hit distance to nearest static collider (if any)
     struct Vector3 castOffset;
@@ -934,8 +888,9 @@ void playerUpdateFooting(struct Player* player, float maxStandDistance) {
 
     player->collisionObject.collisionLayers = prevCollisionLayers;
 
-    // Stand on collision
-    float penetration = hitDistance - PLAYER_HEAD_HEIGHT;
+    // Stand on collision. Crouched, the head (the player's origin, which is
+    // what passes through portals) is held lower, so the camera never leads it.
+    float penetration = hitDistance - playerStandHeight(player);
     if (penetration < 0.00001f) {
         vector3AddScaled(&player->body.transform.position, &gUp, MIN(-penetration, maxStandDistance), &player->body.transform.position);
         if (player->body.velocity.y < 0.0f) {
@@ -1054,10 +1009,8 @@ static void playerShakeUpdate(struct Player* player) {
 }
 
 static void playerUpdateCamera(struct Player* player, struct Vector2* lookInput, int didPassThroughPortal) {
-    float camera_y_modifier = (player->flags & PlayerCrouched) ? -0.25f : 0.0f;
-
+    // Crouching lowers the head itself (playerUpdateFooting).
     player->lookTransform.position = player->body.transform.position;
-    player->lookTransform.position.y += camera_y_modifier;
     player->lookTransform.rotation = player->body.transform.rotation;
 
     // If player is shaking, shake screen
@@ -1254,6 +1207,13 @@ void playerUpdate(struct Player* player) {
     struct SKAnimationClip* clip = playerDetermineNextClip(player, &player->animator.blendLerp, &startTime, &forward, &right);
     if (clip != player->animator.from.currentClip) {
         skAnimatorRunClip(&player->animator.from, clip, startTime, SKAnimatorFlagsLoop);
+    }
+
+    // Slowing down blends towards the gun-holding pose when the runs hold it.
+    struct SKAnimationClip* standingClip = sPlayerRunCClips[(player->flags & (PlayerHasFirstPortalGun | PlayerHasSecondPortalGun)) ? 1 : 0];
+
+    if (standingClip != player->animator.to.currentClip) {
+        skAnimatorRunClip(&player->animator.to, standingClip, 0.0f, SKAnimatorFlagsLoop);
     }
 
     playerUpdateHealth(player);

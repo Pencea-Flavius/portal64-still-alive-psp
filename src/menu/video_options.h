@@ -1,13 +1,15 @@
 #ifndef __OPTIONS_VIDEO_OPTIONS_H__
 #define __OPTIONS_VIDEO_OPTIONS_H__
 
-#include "graphics/graphics.h"
+#include "graphics/render_types.h"
 #include "menu.h"
 #include "menu_builder.h"
 
 enum VideoOption {
     VideoOptionWidescreen,
+#ifndef PSP
     VideoOptionInterlaced,
+#endif
     VideoOptionSubtitles,
     VideoOptionCaptions,
     VideoOptionTextLanguage,
