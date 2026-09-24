@@ -38,38 +38,38 @@ enum ControllerDirectionIcon {
 };
 
 #ifdef PSP
-// assets/images/psp/button_icons.png: a 4x4 grid of 16 pixel cells, icons
-// inset two pixels. Each N64 input shows the PSP button that presses it
-// (see src/system/psp/controller_psp.c).
+// assets/images/psp/button_icons.png: a 4x4 grid of 16 pixel cells. Each N64
+// input shows the PSP button that presses it (see
+// src/system/psp/controller_psp.c).
 static struct ControllerIcon sControllerButtonIcons[] = {
-    [ControllerButtonIconA]    = {2, 2, 12, 12},     // cross
-    [ControllerButtonIconB]    = {18, 2, 12, 12},    // circle
-    [ControllerButtonIconS]    = {50, 34, 12, 12},   // START
+    [ControllerButtonIconA]    = {48, 0, 16, 16},    // cross
+    [ControllerButtonIconB]    = {32, 0, 16, 16},    // circle
+    [ControllerButtonIconS]    = {0, 48, 16, 16},    // START
 
-    [ControllerButtonIconCU]   = {50, 2, 12, 12},    // triangle
-    [ControllerButtonIconCR]   = {18, 2, 12, 12},    // circle
-    [ControllerButtonIconCD]   = {2, 2, 12, 12},     // cross
-    [ControllerButtonIconCL]   = {34, 2, 12, 12},    // square
+    [ControllerButtonIconCU]   = {0, 0, 16, 16},     // triangle
+    [ControllerButtonIconCR]   = {32, 0, 16, 16},    // circle
+    [ControllerButtonIconCD]   = {48, 0, 16, 16},    // cross
+    [ControllerButtonIconCL]   = {16, 0, 16, 16},    // square
 
-    [ControllerButtonIconDU]   = {2, 18, 12, 12},
-    [ControllerButtonIconDR]   = {18, 18, 12, 12},
-    [ControllerButtonIconDD]   = {34, 18, 12, 12},
-    [ControllerButtonIconDL]   = {50, 18, 12, 12},
+    [ControllerButtonIconDU]   = {0, 32, 16, 16},
+    [ControllerButtonIconDR]   = {48, 32, 16, 16},
+    [ControllerButtonIconDD]   = {32, 32, 16, 16},
+    [ControllerButtonIconDL]   = {16, 32, 16, 16},
 
-    [ControllerButtonIconZ]    = {34, 34, 12, 12},   // SELECT
-    [ControllerButtonIconR]    = {18, 34, 12, 12},
-    [ControllerButtonIconL]    = {2, 34, 12, 12},
+    [ControllerButtonIconZ]    = {16, 48, 16, 16},   // SELECT
+    [ControllerButtonIconR]    = {48, 48, 16, 16},
+    [ControllerButtonIconL]    = {32, 48, 16, 16},
 };
 
 static struct ControllerIcon sControllerDirectionIcons[] = {
-    [ControllerDirectionIconC] = {1, 50, 14, 12},    // the four face buttons
-    [ControllerDirectionIconD] = {17, 50, 14, 12},   // the D-pad
-    [ControllerDirectionIconJ] = {33, 50, 14, 12},   // the analog nub
+    [ControllerDirectionIconC] = {0, 16, 16, 16},    // the four face buttons
+    [ControllerDirectionIconD] = {16, 16, 16, 16},   // the D-pad
+    [ControllerDirectionIconJ] = {32, 16, 16, 16},   // the analog nub
 };
 
 static struct ControllerIcon sControllerIndexIcons[] = {
-    { 50, 52, 5, 7 },
-    { 57, 52, 5, 7 },
+    { 48, 18, 8, 12 },
+    { 56, 18, 8, 12 },
 };
 #else
 static struct ControllerIcon sControllerButtonIcons[] = {
