@@ -11,8 +11,15 @@
 #define MAX_CONTROLS_SECTIONS             4
 #define MAX_SOURCES_PER_CONTROLLER_ACTION 4
 
+// Wider and taller on PSP, where the button icons are 16 pixels.
+#ifdef PSP
+#define CONTROLS_WIDTH      (OPTIONS_MENU_WIDTH - 32)
+#define ROW_MIN_HEIGHT      16
+#else
 #define CONTROLS_WIDTH      252
-#define CONTROLS_HEIGHT     124
+#define ROW_MIN_HEIGHT      0
+#endif
+#define CONTROLS_HEIGHT     (OPTIONS_MENU_HEIGHT - 76)
 #define CONTROLS_X          ((SCREEN_WD - CONTROLS_WIDTH) / 2)
 #define CONTROLS_Y          OPTIONS_PAGE_TOP
 
@@ -32,11 +39,11 @@
 
 #define ROW_PADDING_X       8
 #define ROW_PADDING_Y       2
-#define ROW_TEXT_MAX_WIDTH  190
+#define ROW_TEXT_MAX_WIDTH  (CONTROLS_WIDTH - 62)
 
 // Offsets from the box's corner.
 #define USE_DEFAULTS_X      (OPTIONS_MENU_LEFT + OPTIONS_MENU_WIDTH - 14)
-#define USE_DEFAULTS_Y      (OPTIONS_MENU_TOP + 166)
+#define USE_DEFAULTS_Y      (OPTIONS_MENU_TOP + OPTIONS_MENU_HEIGHT - 34)
 #define USE_DEFAULTS_HEIGHT 16
 
 #define PROMPT_MARGIN_X     17
@@ -93,5 +100,6 @@ enum InputCapture controlsMenuUpdate(struct ControlsMenu* controlsMenu);
 int controlsGetActionSourceIcons(enum ControllerAction action, struct ActionSourceIcon* sourceIcons);
 int controlsActionSourceIconsWidth(struct ActionSourceIcon* sourceIcons, int sourceCount);
 struct ControllerIcon* controlsInputIcon(enum ControllerActionInput input);
+int controlsRowHeight(struct ControlsMenuRow* row);
 
 #endif

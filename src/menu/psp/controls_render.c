@@ -122,7 +122,7 @@ void controlsMenuRender(struct ControlsMenu* controlsMenu, struct RenderState* r
             CONTROLS_X + ROW_PADDING_X,
             selectedAction->y,
             CONTROLS_WIDTH - ROW_PADDING_X * 2,
-            selectedAction->actionText->height,
+            controlsRowHeight(selectedAction),
             pspRenderColor(highlight)
         );
     }

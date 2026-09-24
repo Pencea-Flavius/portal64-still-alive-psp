@@ -202,11 +202,16 @@ int controlsActionSourceIconsWidth(struct ActionSourceIcon* sourceIcons, int sou
     return result;
 }
 
+int controlsRowHeight(struct ControlsMenuRow* row) {
+    int height = row->actionText->height;
+    return height < ROW_MIN_HEIGHT ? ROW_MIN_HEIGHT : height;
+}
+
 static void controlsMenuLayoutRow(struct ControlsMenuRow* row, struct ControlActionDataRow* data, int x, int y) {
     struct PrerenderedText* copy = prerenderedTextCopy(row->actionText);
     menuFreePrerenderedDeferred(row->actionText);
     row->actionText = copy;
-    prerenderedTextRelocate(row->actionText, x + ROW_PADDING_X, y);
+    prerenderedTextRelocate(row->actionText, x + ROW_PADDING_X, y + (controlsRowHeight(row) - row->actionText->height) / 2);
 
     struct ActionSourceIcon sourceIcons[MAX_SOURCES_PER_CONTROLLER_ACTION];
     int sourceCount = controlsGetActionSourceIcons(data->action, sourceIcons);
@@ -254,7 +259,7 @@ static void controlsMenuLayout(struct ControlsMenu* controlsMenu) {
 
         controlsMenuLayoutRow(&controlsMenu->actionRows[i], &sControllerDataRows[i], CONTROLS_X, y);
         
-        y += controlsMenu->actionRows[i].actionText->height + ROW_PADDING_Y;
+        y += controlsRowHeight(&controlsMenu->actionRows[i]) + ROW_PADDING_Y;
     }
 
     controlsSeparatorsFinish(controlsMenu, separatorCount);
@@ -373,7 +378,7 @@ enum InputCapture controlsMenuUpdate(struct ControlsMenu* controlsMenu) {
         struct ControlsMenuRow* selectedAction = &controlsMenu->actionRows[controlsMenu->selectedRow];
         int newScroll = controlsMenu->scrollOffset;
         int topY = selectedAction->y;
-        int bottomY = topY + selectedAction->actionText->height + ROW_PADDING_Y + OUTLINE_THICKNESS;
+        int bottomY = topY + controlsRowHeight(selectedAction) + ROW_PADDING_Y + OUTLINE_THICKNESS;
 
         if (sControllerDataRows[controlsMenu->selectedRow].headerId != StringIdNone) {
             topY -= HEADER_PADDING_Y + HEADER_HEIGHT + SEPARATOR_PADDING_Y;

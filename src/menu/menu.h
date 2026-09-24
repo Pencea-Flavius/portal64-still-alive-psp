@@ -17,10 +17,11 @@
 // because the pages inside it include options_menu.h.
 #ifdef PSP
 #define OPTIONS_MENU_WIDTH  400
+#define OPTIONS_MENU_HEIGHT 236
 #else
 #define OPTIONS_MENU_WIDTH  280
-#endif
 #define OPTIONS_MENU_HEIGHT 200
+#endif
 #define OPTIONS_MENU_LEFT   ((SCREEN_WD - OPTIONS_MENU_WIDTH) / 2)
 #define OPTIONS_MENU_TOP    ((SCREEN_HT - OPTIONS_MENU_HEIGHT) / 2)
 
