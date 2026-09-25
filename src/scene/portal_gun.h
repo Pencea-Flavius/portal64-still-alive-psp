@@ -36,7 +36,7 @@ struct PortalGun {
     struct PortalGunProjectile projectiles[2];
 };
 
-void portalGunInit(struct PortalGun* portalGun, struct Transform* at, int isFreshStart);
+void portalGunInit(struct PortalGun* portalGun, struct Player* player, int isFreshStart);
 void portalGunUpdate(struct PortalGun* portalGun, struct Player* player);
 // Drawing is split per machine; the build picks which .c defines these.
 struct MaterialState;

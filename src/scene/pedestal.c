@@ -107,5 +107,11 @@ void pedestalGunMuzzle(struct Pedestal* pedestal, struct Vector3* out) {
 }
 
 void pedestalSetDown(struct Pedestal* pedestal) {
-    skAnimatorRunClip(&pedestal->animator, dynamicAssetClip(PEDESTAL_DYNAMIC_ANIMATED_MODEL, PEDESTAL_ARMATURE_HIDDEN_CLIP_INDEX), 0.0f, 0);
+    skAnimatorRunClip(
+        &pedestal->animator,
+        dynamicAssetClip(PEDESTAL_DYNAMIC_ANIMATED_MODEL, PEDESTAL_ARMATURE_HIDDEN_CLIP_INDEX),
+        0.0f,
+        SKAnimatorStartFlagsLoadSync
+    );
+    skAnimatorUpdate(&pedestal->animator, pedestal->armature.pose, FIXED_DELTA_TIME);
 }

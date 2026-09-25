@@ -109,31 +109,7 @@ void doorInit(struct Door* door, struct DoorDefinition* doorDefinition, struct W
     door->isOpen = 0;
 }
 
-void doorUpdate(struct Door* door) {
-    struct DoorTypeDefinition* typeDefinition = &sDoorTypeDefinitions[door->doorDefinition->doorType];
-
-    int animationDirection = door->isOpen ? 1 : -1;
-    skAnimatorUpdate(
-        &door->animator,
-        door->armature.pose,
-        FIXED_DELTA_TIME * animationDirection
-    );
-
-    if (signalsRead(door->signalIndex) != door->isOpen) {
-        struct SKAnimationClip* clip = dynamicAssetClip(
-            typeDefinition->armatureIndex,
-            typeDefinition->openClipIndex
-        );
-
-        float startTime = SK_ANIMATION_CLIP_START(clip, door->isOpen);
-        skAnimatorEnsureClipRunning(&door->animator, clip, startTime, 0);
-
-        soundPlayerPlay(soundsDoor, 3.0f, 1.0f, &door->rigidBody.transform.position, &gZeroVec, SoundTypeAll);
-        hudShowSubtitle(&gScene.hud, PORTAL_DOORCLOSE, SubtitleTypeCaption);
-
-        door->isOpen ^= 1;
-    }
-
+static void doorApplyOpenState(struct Door* door, struct DoorTypeDefinition* typeDefinition) {
     int isDoorwayOpen = skAnimatorIsRunning(&door->animator) || door->isOpen;
 
     if (door->forDoorway) {
@@ -158,6 +134,34 @@ void doorUpdate(struct Door* door) {
     }
 }
 
+void doorUpdate(struct Door* door) {
+    struct DoorTypeDefinition* typeDefinition = &sDoorTypeDefinitions[door->doorDefinition->doorType];
+
+    int animationDirection = door->isOpen ? 1 : -1;
+    skAnimatorUpdate(
+        &door->animator,
+        door->armature.pose,
+        FIXED_DELTA_TIME * animationDirection
+    );
+
+    if (signalsRead(door->signalIndex) != door->isOpen) {
+        struct SKAnimationClip* clip = dynamicAssetClip(
+            typeDefinition->armatureIndex,
+            typeDefinition->openClipIndex
+        );
+
+        float startTime = SK_ANIMATION_CLIP_START(clip, door->isOpen);
+        skAnimatorRunClip(&door->animator, clip, startTime, SKAnimatorStartFlagsContinue);
+
+        soundPlayerPlay(soundsDoor, 3.0f, 1.0f, &door->rigidBody.transform.position, &gZeroVec, SoundTypeAll);
+        hudShowSubtitle(&gScene.hud, PORTAL_DOORCLOSE, SubtitleTypeCaption);
+
+        door->isOpen ^= 1;
+    }
+
+    doorApplyOpenState(door, typeDefinition);
+}
+
 void doorOnDeserialize(struct Door* door) {
     struct DoorTypeDefinition* typeDefinition = &sDoorTypeDefinitions[door->doorDefinition->doorType];
 
@@ -167,9 +171,10 @@ void doorOnDeserialize(struct Door* door) {
             typeDefinition->openClipIndex
         );
 
-        skAnimatorRunClip(&door->animator, clip, SK_ANIMATION_CLIP_DURATION(clip), 0);
+        skAnimatorRunClip(&door->animator, clip, SK_ANIMATION_CLIP_DURATION(clip), SKAnimatorStartFlagsLoadSync);
         skAnimatorUpdate(&door->animator, door->armature.pose, FIXED_DELTA_TIME);
 
         door->isOpen = 1;
+        doorApplyOpenState(door, typeDefinition);
     }
 }
