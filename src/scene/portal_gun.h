@@ -38,6 +38,7 @@ struct PortalGun {
 
 void portalGunInit(struct PortalGun* portalGun, struct Player* player, int isFreshStart);
 void portalGunUpdate(struct PortalGun* portalGun, struct Player* player);
+void portalGunOnDeserialize(struct PortalGun* portalGun, struct Player* player);
 // Drawing is split per machine; the build picks which .c defines these.
 struct MaterialState;
 void portalBallRender(struct PortalGunProjectile* projectile, struct RenderState* renderState, struct MaterialState* materialState, struct Transform* fromView, int portalIndex);

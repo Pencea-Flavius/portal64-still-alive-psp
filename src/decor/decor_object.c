@@ -9,15 +9,15 @@
 #define TIME_TO_FIZZLE         2.0f
 #define FIZZLE_TIME_STEP       (FIXED_DELTA_TIME / TIME_TO_FIZZLE)
 
-#define DECOR_COLLISION_LAYERS (COLLISION_LAYERS_TANGIBLE | COLLISION_LAYERS_GRABBABLE | COLLISION_LAYERS_FIZZLER | COLLISION_LAYERS_BLOCK_TURRET_SHOTS | COLLISION_LAYERS_BLOCK_BALL)
+#define DECOR_COLLISION_LAYERS (          \
+    COLLISION_LAYERS_TANGIBLE           | \
+    COLLISION_LAYERS_GRABBABLE          | \
+    COLLISION_LAYERS_FIZZLER            | \
+    COLLISION_LAYERS_BLOCK_TURRET_SHOTS | \
+    COLLISION_LAYERS_BLOCK_BALL           \
+)
 
-struct DecorObject* decorObjectNew(struct DecorObjectDefinition* definition, struct Transform* at, int room) {
-    struct DecorObject* result = malloc(sizeof(struct DecorObject));
-    decorObjectInit(result, definition, at, room);
-    return result;
-}
-
-void decorObjectReset(struct DecorObject* object) {
+static void decorObjectReset(struct DecorObject* object) {
     object->rigidBody.transform.position = object->originalPosition;
     object->rigidBody.transform.rotation = object->originalRotation;
     object->rigidBody.velocity = gZeroVec;
@@ -38,84 +38,37 @@ void decorObjectInit(struct DecorObject* object, struct DecorObjectDefinition* d
         object->collisionObject.body = NULL;
     }
 
-    object->definition = definition;
-
     object->rigidBody.transform = *at;
     object->rigidBody.flags |= RigidBodyFlagsGrabbable;
     object->rigidBody.currentRoom = room;
-    object->fizzleTime = 0.0f;
 
+    object->definition = definition;
     object->originalPosition = at->position;
     object->originalRotation = at->rotation;
     object->originalRoom = room;
-
-    dynamicAssetModelPreload(definition->dynamicModelIndex);
 
     if (definition->colliderType.type != CollisionShapeTypeNone) {
         collisionObjectUpdateBB(&object->collisionObject);
     }
 
+    dynamicAssetModelPreload(definition->dynamicModelIndex);
     object->dynamicId = dynamicSceneAdd(object, decorObjectRender, &object->rigidBody.transform.position, definition->radius);
-
     dynamicSceneSetRoomFlags(object->dynamicId, ROOM_FLAG_FROM_INDEX(room));
 
+    object->fizzleTime = 0.0f;
     object->playingSound = SOUND_ID_NONE;
-}
-
-void decorObjectCleanup(struct DecorObject* decorObject) {
-    dynamicSceneRemove(decorObject->dynamicId);
-    collisionSceneRemoveDynamicObject(&decorObject->collisionObject);
-    if ((decorObject->playingSound != SOUND_ID_NONE) && (soundPlayerIsPlaying(decorObject->playingSound))) {
-        soundPlayerStop(decorObject->playingSound);
-    }
-}
-
-void decorObjectDelete(struct DecorObject* decorObject) {
-    decorObjectCleanup(decorObject);
-    free(decorObject);
-}
-
-enum FizzleCheckResult decorObjectUpdateFizzler(struct CollisionObject* collisionObject, float* fizzleTime) {
-    enum FizzleCheckResult result = FizzleCheckResultNone;
-
-    if (collisionObject->body && collisionObject->body->flags & RigidBodyFizzled) {
-        if (*fizzleTime == 0.0f) {
-            vector3Scale(&collisionObject->body->velocity, &collisionObject->body->velocity, 0.25f);
-
-            struct Quaternion randomRotation;
-            quatRandom(&randomRotation);
-            struct Vector3 randomAngularVelocity;
-            quatMultVector(&randomRotation, &gRight, &randomAngularVelocity);
-
-            vector3AddScaled(&collisionObject->body->angularVelocity, &randomAngularVelocity, 0.3f, &collisionObject->body->angularVelocity);
-
-            result = FizzleCheckResultStart;
-
-            collisionObject->body->flags &= ~RigidBodyFlagsGrabbable;
-            collisionObject->body->flags |= RigidBodyDisableGravity;
-        }
-
-        collisionObject->collisionLayers = 0;
-
-        if (*fizzleTime < 1.0f) {
-            *fizzleTime += FIZZLE_TIME_STEP;
-        } else {
-            result = FizzleCheckResultEnd;
-        }
-    }
-
-    return result;
 }
 
 int decorObjectUpdate(struct DecorObject* decorObject) {
     if (decorObject->collisionObject.flags & COLLISION_OBJECT_PLAYER_STANDING) {
         decorObject->collisionObject.flags &= ~COLLISION_OBJECT_PLAYER_STANDING;
     }
+    dynamicSceneSetRoomFlags(decorObject->dynamicId, ROOM_FLAG_FROM_INDEX(decorObject->rigidBody.currentRoom));
 
     if (decorObject->playingSound != SOUND_ID_NONE) {
         soundPlayerSetPosition(
-            decorObject->playingSound, 
-            &decorObject->rigidBody.transform.position, 
+            decorObject->playingSound,
+            &decorObject->rigidBody.transform.position,
             &decorObject->rigidBody.velocity
         );
     }
@@ -149,7 +102,61 @@ int decorObjectUpdate(struct DecorObject* decorObject) {
         decorObject->playingSound = soundPlayerPlay(decorObject->definition->soundClipId, 0.9f, 1.0f, &decorObject->rigidBody.transform.position, &decorObject->rigidBody.velocity, SoundTypeAll);
     }
 
-    dynamicSceneSetRoomFlags(decorObject->dynamicId, ROOM_FLAG_FROM_INDEX(decorObject->rigidBody.currentRoom));
-
     return 1;
+}
+
+void decorObjectOnDeserialize(struct DecorObject* decorObject) {
+    dynamicSceneSetRoomFlags(decorObject->dynamicId, ROOM_FLAG_FROM_INDEX(decorObject->rigidBody.currentRoom));
+}
+
+struct DecorObject* decorObjectNew(struct DecorObjectDefinition* definition, struct Transform* at, int room) {
+    struct DecorObject* result = malloc(sizeof(struct DecorObject));
+    decorObjectInit(result, definition, at, room);
+    return result;
+}
+
+void decorObjectCleanup(struct DecorObject* decorObject) {
+    dynamicSceneRemove(decorObject->dynamicId);
+    collisionSceneRemoveDynamicObject(&decorObject->collisionObject);
+    decorObject->dynamicId = INVALID_DYNAMIC_OBJECT;
+
+    if ((decorObject->playingSound != SOUND_ID_NONE) && (soundPlayerIsPlaying(decorObject->playingSound))) {
+        soundPlayerStop(decorObject->playingSound);
+    }
+}
+
+void decorObjectDelete(struct DecorObject* decorObject) {
+    decorObjectCleanup(decorObject);
+    free(decorObject);
+}
+
+enum FizzleCheckResult decorObjectUpdateFizzler(struct CollisionObject* collisionObject, float* fizzleTime) {
+    enum FizzleCheckResult result = FizzleCheckResultNone;
+
+    if (collisionObject->body && collisionObject->body->flags & RigidBodyFizzled) {
+        if (*fizzleTime == 0.0f) {
+            vector3Scale(&collisionObject->body->velocity, &collisionObject->body->velocity, 0.25f);
+
+            struct Quaternion randomRotation;
+            quatRandom(&randomRotation);
+            struct Vector3 randomAngularVelocity;
+            quatMultVector(&randomRotation, &gRight, &randomAngularVelocity);
+
+            vector3AddScaled(&collisionObject->body->angularVelocity, &randomAngularVelocity, 0.3f, &collisionObject->body->angularVelocity);
+
+            result = FizzleCheckResultStart;
+
+            collisionObject->body->flags |= RigidBodyDisableGravity;
+        }
+
+        collisionObject->collisionLayers = 0;
+
+        if (*fizzleTime < 1.0f) {
+            *fizzleTime += FIZZLE_TIME_STEP;
+        } else {
+            result = FizzleCheckResultEnd;
+        }
+    }
+
+    return result;
 }

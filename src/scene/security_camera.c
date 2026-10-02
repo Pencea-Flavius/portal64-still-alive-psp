@@ -8,6 +8,7 @@
 #include "scene.h"
 #include "util/dynamic_asset_loader.h"
 #include "util/frame_time.h"
+#include "util/memory.h"
 
 #include "codegen/assets/audio/clips.h"
 #include "codegen/assets/materials/static.h"
@@ -16,7 +17,12 @@
 
 #define SECURITY_CAMERA_RANGE            10.0f
 #define SECURITY_CAMERA_RIGID_BODY_MASS  1.0f
-#define SECURITY_CAMERA_COLLISION_LAYERS (COLLISION_LAYERS_TANGIBLE | COLLISION_LAYERS_FIZZLER | COLLISION_LAYERS_BLOCK_TURRET_SHOTS | COLLISION_LAYERS_BLOCK_BALL)
+#define SECURITY_CAMERA_COLLISION_LAYERS ( \
+    COLLISION_LAYERS_TANGIBLE           |  \
+    COLLISION_LAYERS_FIZZLER            |  \
+    COLLISION_LAYERS_BLOCK_TURRET_SHOTS |  \
+    COLLISION_LAYERS_BLOCK_BALL            \
+)
 
 static struct CollisionBox sSecurityCameraCollisionBox = {
     {0.15f, 0.3f, 0.35f}
@@ -31,6 +37,14 @@ static struct ColliderTypeData sSecurityCameraCollider = {
 };
 
 static struct Quaternion sBarBoneRelative = {1.0f, 0.0f, 0.0f, 0.0f};
+
+static short sCameraDestroyClips[] = {
+    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_1,
+    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_2,
+    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_3,
+    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_4,
+    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_5,
+};
 
 static void securityCameraLookAt(struct SecurityCamera* securityCamera, struct Vector3* target) {
     if (securityCameraIsDetached(securityCamera)) {
@@ -123,7 +137,7 @@ static void securityCameraRender(void* data, struct DynamicRenderDataList* rende
     );
 }
 
-void securityCameraInit(struct SecurityCamera* securityCamera, struct SecurityCameraDefinition* definition) {
+void securityCameraInit(struct SecurityCamera* securityCamera, struct SecurityCameraDefinition* definition, int index) {
     struct SKArmatureWithAnimations* armature = dynamicAssetAnimatedModel(PROPS_SECURITY_CAMERA_DYNAMIC_ANIMATED_MODEL);
 
     collisionObjectInit(&securityCamera->collisionObject, &sSecurityCameraCollider, &securityCamera->rigidBody, 1.0f, SECURITY_CAMERA_COLLISION_LAYERS);
@@ -144,51 +158,57 @@ void securityCameraInit(struct SecurityCamera* securityCamera, struct SecurityCa
 
     collisionObjectUpdateBB(&securityCamera->collisionObject);
 
+    securityCamera->index = index;
     securityCamera->dynamicId = dynamicSceneAdd(securityCamera, securityCameraRender, &securityCamera->rigidBody.transform.position, 0.4f);
     dynamicSceneSetRoomFlags(securityCamera->dynamicId, ROOM_FLAG_FROM_INDEX(securityCamera->rigidBody.currentRoom));
 
     securityCamera->fizzleTime = 0.0f;
 }
 
-void securityCameraUpdate(struct SecurityCamera* securityCamera) {
-    if (securityCamera->dynamicId == INVALID_DYNAMIC_OBJECT) {
-        return;
-    }
-
+int securityCameraUpdate(struct SecurityCamera* securityCamera) {
     if (securityCamera->collisionObject.flags & COLLISION_OBJECT_PLAYER_STANDING) {
         securityCamera->collisionObject.flags &= ~COLLISION_OBJECT_PLAYER_STANDING;
     }
+    dynamicSceneSetRoomFlags(securityCamera->dynamicId, ROOM_FLAG_FROM_INDEX(securityCamera->rigidBody.currentRoom));
+
     if (decorObjectUpdateFizzler(&securityCamera->collisionObject, &securityCamera->fizzleTime) == FizzleCheckResultEnd) {
         dynamicSceneRemove(securityCamera->dynamicId);
         collisionSceneRemoveDynamicObject(&securityCamera->collisionObject);
         securityCamera->dynamicId = INVALID_DYNAMIC_OBJECT;
+        return 0;
     }
 
+    return 1;
+}
+
+void securityCameraOnDeserialize(struct SecurityCamera* securityCamera) {
     dynamicSceneSetRoomFlags(securityCamera->dynamicId, ROOM_FLAG_FROM_INDEX(securityCamera->rigidBody.currentRoom));
 }
 
-short gCameraDestroyClips[] = {
-    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_1,
-    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_2,
-    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_3,
-    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_4,
-    SOUNDS_GENERIC_SECURITY_CAMERA_DESTROYED_5,
-};
+struct SecurityCamera* securityCameraNew(struct SecurityCameraDefinition* definition, int index) {
+    struct SecurityCamera* securityCamera = malloc(sizeof(struct SecurityCamera));
+    securityCameraInit(securityCamera, definition, index);
+    return securityCamera;
+}
 
-void securityCamerasCheckPortal(struct SecurityCamera* securityCameras, int cameraCount, struct Box3D* portalBox) {
-    for (int i = 0; i < cameraCount; ++i) {
-        struct SecurityCamera* camera = &securityCameras[i];
-        if (securityCameraIsDetached(camera)) {
-            // already free skip this one
-            continue;
-        }
-        if (box3DHasOverlap(&camera->collisionObject.boundingBox, portalBox)) {
-            securityCameraDetach(camera);
+void securityCameraDelete(struct SecurityCamera* securityCamera) {
+    // We only delete if the camera was fizzled, in which case it cleans up itself
+    // Just need to delete
+    free(securityCamera);
+}
 
-            if (!cutsceneRunnerIsChannelPlaying(CH_GLADOS)) {
-                short clipIndex = randomInRange(0, sizeof(gCameraDestroyClips) / sizeof(*gCameraDestroyClips));
-                cutsceneQueueSoundInChannel(gCameraDestroyClips[clipIndex], 1.0f, CH_GLADOS, StringIdNone);
-            }
+void securityCameraCheckPortal(struct SecurityCamera* securityCamera, struct Box3D* portalBox) {
+    if (securityCameraIsDetached(securityCamera)) {
+        // Already free
+        return;
+    }
+
+    if (box3DHasOverlap(&securityCamera->collisionObject.boundingBox, portalBox)) {
+        securityCameraDetach(securityCamera);
+
+        if (!cutsceneRunnerIsChannelPlaying(CH_GLADOS)) {
+            short clipIndex = randomInRange(0, sizeof(sCameraDestroyClips) / sizeof(*sCameraDestroyClips));
+            cutsceneQueueSoundInChannel(sCameraDestroyClips[clipIndex], 1.0f, CH_GLADOS, StringIdNone);
         }
     }
 }
