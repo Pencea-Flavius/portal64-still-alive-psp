@@ -787,6 +787,10 @@ void sceneUpdate(struct Scene* scene) {
 
     cutscenesUpdate();
 
+    // Cutscenes and moving surfaces open/close portals after sceneCheckPortals,
+    // so redo the wall now or it keeps the old hole for a frame.
+    portalCheckForHoles(scene->portals);
+
     collisionSceneUpdateDynamics();
 
     for (int i = 0; i < scene->triggerListenerCount; ++i) {
