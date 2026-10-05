@@ -112,7 +112,7 @@ void sceneInit(struct Scene* scene) {
 }
 
 void sceneInitNoPauseMenu(struct Scene* scene, int mainMenuMode) {
-    signalsInit(1);
+    signalsInit(gCurrentLevel->signalCount);
 
     cameraInit(&scene->camera, DEFAULT_CAMERA_FOV, DEFAULT_NEAR_PLANE * SCENE_SCALE, DEFAULT_FAR_PLANE * SCENE_SCALE);
 
@@ -715,11 +715,7 @@ void sceneUpdate(struct Scene* scene) {
         ballCatcherUpdate(&scene->ballCatchers[i], scene->ballLaunchers, scene->ballLauncherCount);
     }
 
-    for (int i = 0; i < scene->triggerListenerCount; ++i) {
-        triggerListenerUpdate(&scene->triggerListeners[i]);
-    }
-
-    signalsEvaluateSignals(gCurrentLevel->signalOperators, gCurrentLevel->signalOperatorCount);
+    signalsEvaluateOperators(gCurrentLevel->signalOperators, gCurrentLevel->signalOperatorCount);
 
     for (int i = 0; i < scene->doorCount; ++i) {
         doorUpdate(&scene->doors[i]);
@@ -792,6 +788,10 @@ void sceneUpdate(struct Scene* scene) {
     cutscenesUpdate();
 
     collisionSceneUpdateDynamics();
+
+    for (int i = 0; i < scene->triggerListenerCount; ++i) {
+        triggerListenerUpdate(&scene->triggerListeners[i]);
+    }
 
     debugSceneUpdate(scene);
 

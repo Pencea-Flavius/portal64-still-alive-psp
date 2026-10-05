@@ -7,7 +7,7 @@
 
 #define TRIGGER_TYPE_TO_MASK(type)      (1 << (type))
 
-enum ObjectTriggerType triggerDetermineType(struct CollisionObject* objectEnteringTrigger) {
+static int triggerDetermineMask(struct CollisionObject* objectEnteringTrigger) {
     if (objectEnteringTrigger->body->flags & RigidBodyIsPlayer) {
         return TRIGGER_TYPE_TO_MASK(ObjectTriggerTypePlayer);
     }
@@ -22,33 +22,33 @@ enum ObjectTriggerType triggerDetermineType(struct CollisionObject* objectEnteri
     return ObjectTriggerTypeNone;
 }
 
-void triggerTrigger(struct CollisionObject* collisionObject, struct CollisionObject* objectEnteringTrigger) {
+static void triggerTrigger(struct CollisionObject* collisionObject, struct CollisionObject* objectEnteringTrigger) {
     struct TriggerListener* listener = collisionObject->data;
 
     struct Vector3 offset;
     vector3Sub(
-        &objectEnteringTrigger->body->transform.position, 
-        &listener->body.transform.position, 
+        &objectEnteringTrigger->body->transform.position,
+        &listener->body.transform.position,
         &offset
     );
 
     if (listener->trigger->type == TriggerTypeContain) {
         if (fabsf(offset.x) > listener->collisionData.sideLength.x ||
             fabsf(offset.y) > listener->collisionData.sideLength.y ||
-            fabsf(offset.z) > listener->collisionData.sideLength.z) {
+            fabsf(offset.z) > listener->collisionData.sideLength.z
+        ) {
             // Only trigger when triggering object is contained
             return;
         }
     }
 
-    enum ObjectTriggerType triggerType = triggerDetermineType(objectEnteringTrigger);
-
-    if (triggerType & listener->usedTriggerMask) {
-        // an object activating a signal should not sleep
+    int triggerMask = triggerDetermineMask(objectEnteringTrigger);
+    if (triggerMask & listener->usedTriggerSignalMask) {
+        // An object activating a signal should not sleep
         objectEnteringTrigger->body->sleepFrames = IDLE_SLEEP_FRAMES;
     }
 
-    listener->lastTriggerMask |= triggerType;
+    listener->lastTriggerMask |= triggerMask;
 }
 
 void triggerInit(struct TriggerListener* listener, struct Trigger* trigger, int triggerIndex) {
@@ -56,7 +56,7 @@ void triggerInit(struct TriggerListener* listener, struct Trigger* trigger, int 
     vector3Scale(&listener->collisionData.sideLength, &listener->collisionData.sideLength, 0.5f);
 
     listener->colliderType.type = CollisionShapeTypeBox;
-    listener->colliderType.data = &listener->collisionData; 
+    listener->colliderType.data = &listener->collisionData;
     listener->colliderType.bounce = 0.0f;
     listener->colliderType.friction = 0.0f;
     listener->colliderType.callbacks = &gCollisionBoxCallbacks;
@@ -72,15 +72,21 @@ void triggerInit(struct TriggerListener* listener, struct Trigger* trigger, int 
     listener->collisionObject.data = listener;
     listener->trigger = trigger;
     listener->triggerIndex = triggerIndex;
-    
+
     collisionSceneAddDynamicObject(&listener->collisionObject);
 
     listener->lastTriggerMask = 0;
     listener->usedTriggerMask = 0;
+    listener->usedTriggerSignalMask = 0;
 
     for (int i = 0; i < trigger->triggerCount; ++i) {
         struct ObjectTriggerInfo* triggerInfo = &trigger->triggers[i];
-        listener->usedTriggerMask |= 1 << triggerInfo->objectType;
+        int mask = TRIGGER_TYPE_TO_MASK(triggerInfo->objectType);
+
+        if (triggerInfo->signalIndex != -1) {
+            listener->usedTriggerSignalMask |= mask;
+        }
+        listener->usedTriggerMask |= mask;
     }
 }
 
@@ -94,9 +100,9 @@ void triggerListenerUpdate(struct TriggerListener* listener) {
     for (int i = 0; i < trigger->triggerCount; ++i) {
         struct ObjectTriggerInfo* triggerInfo = &trigger->triggers[i];
 
-        if ((1 << triggerInfo->objectType) & listener->lastTriggerMask) {
+        if (TRIGGER_TYPE_TO_MASK(triggerInfo->objectType) & listener->lastTriggerMask) {
             if (triggerInfo->signalIndex != -1) {
-                signalsSend(triggerInfo->signalIndex);
+                signalsQueue(triggerInfo->signalIndex);
             }
 
             cutsceneTrigger(triggerInfo->cutsceneIndex, listener->triggerIndex + i);
