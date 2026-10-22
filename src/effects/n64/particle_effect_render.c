@@ -144,6 +144,10 @@ static Gfx* particleEffectBuildDisplayList(struct RenderState* renderState, stru
 void particleEffectRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct ParticleEffect* effect = (struct ParticleEffect*)data;
 
+    if (particleEffectIsCulled(effect, &renderList->visibleRooms)) {
+        return;
+    }
+
     Mtx* matrix = NULL;
     if (effect->parent) {
         matrix = renderStateRequestMatrices(renderState, 1);
@@ -162,6 +166,10 @@ void particleEffectRender(void* data, struct DynamicRenderDataList* renderList, 
 
 void particleEffectRenderBillboarded(void* data, struct RenderScene* renderScene, struct Transform* fromView) {
     struct ParticleEffect* effect = (struct ParticleEffect*)data;
+
+    if (particleEffectIsCulled(effect, &renderScene->visibleRooms)) {
+        return;
+    }
 
     Gfx* gfx;
     Mtx* matrix = NULL;

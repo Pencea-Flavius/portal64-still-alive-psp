@@ -171,6 +171,10 @@ static struct PspModel* particleEffectBuildModel(struct RenderState* renderState
 void particleEffectRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {
     struct ParticleEffect* effect = (struct ParticleEffect*)data;
 
+    if (particleEffectIsCulled(effect, &renderList->visibleRooms)) {
+        return;
+    }
+
     struct PspModel* model = particleEffectBuildModel(renderState, effect, NULL);
 
     if (!model) {
@@ -197,6 +201,10 @@ void particleEffectRender(void* data, struct DynamicRenderDataList* renderList, 
 
 void particleEffectRenderBillboarded(void* data, struct RenderScene* renderScene, struct Transform* fromView) {
     struct ParticleEffect* effect = (struct ParticleEffect*)data;
+
+    if (particleEffectIsCulled(effect, &renderScene->visibleRooms)) {
+        return;
+    }
 
     struct RenderState* renderState = renderScene->renderState;
 

@@ -137,6 +137,12 @@ static void securityCameraRender(void* data, struct DynamicRenderDataList* rende
     );
 }
 
+static void securityCameraUpdateRoomFlags(struct SecurityCamera* securityCamera) {
+    uint64_t roomFlags;
+    rigidBodyGetVisibleRooms(&securityCamera->rigidBody, &roomFlags);
+    dynamicSceneSetRoomFlags(securityCamera->dynamicId, roomFlags);
+}
+
 void securityCameraInit(struct SecurityCamera* securityCamera, struct SecurityCameraDefinition* definition, int index) {
     struct SKArmatureWithAnimations* armature = dynamicAssetAnimatedModel(PROPS_SECURITY_CAMERA_DYNAMIC_ANIMATED_MODEL);
 
@@ -160,7 +166,7 @@ void securityCameraInit(struct SecurityCamera* securityCamera, struct SecurityCa
 
     securityCamera->index = index;
     securityCamera->dynamicId = dynamicSceneAdd(securityCamera, securityCameraRender, &securityCamera->rigidBody.transform.position, 0.4f);
-    dynamicSceneSetRoomFlags(securityCamera->dynamicId, ROOM_FLAG_FROM_INDEX(securityCamera->rigidBody.currentRoom));
+    securityCameraUpdateRoomFlags(securityCamera);
 
     securityCamera->fizzleTime = 0.0f;
 }
@@ -169,7 +175,7 @@ int securityCameraUpdate(struct SecurityCamera* securityCamera) {
     if (securityCamera->collisionObject.flags & COLLISION_OBJECT_PLAYER_STANDING) {
         securityCamera->collisionObject.flags &= ~COLLISION_OBJECT_PLAYER_STANDING;
     }
-    dynamicSceneSetRoomFlags(securityCamera->dynamicId, ROOM_FLAG_FROM_INDEX(securityCamera->rigidBody.currentRoom));
+    securityCameraUpdateRoomFlags(securityCamera);
 
     if (decorObjectUpdateFizzler(&securityCamera->collisionObject, &securityCamera->fizzleTime) == FizzleCheckResultEnd) {
         dynamicSceneRemove(securityCamera->dynamicId);
@@ -182,7 +188,7 @@ int securityCameraUpdate(struct SecurityCamera* securityCamera) {
 }
 
 void securityCameraOnDeserialize(struct SecurityCamera* securityCamera) {
-    dynamicSceneSetRoomFlags(securityCamera->dynamicId, ROOM_FLAG_FROM_INDEX(securityCamera->rigidBody.currentRoom));
+    securityCameraUpdateRoomFlags(securityCamera);
 }
 
 struct SecurityCamera* securityCameraNew(struct SecurityCameraDefinition* definition, int index) {

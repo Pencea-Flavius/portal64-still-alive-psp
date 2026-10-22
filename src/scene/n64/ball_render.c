@@ -23,7 +23,14 @@ void ballRender(void* data, struct RenderScene* renderScene, struct Transform* f
         return;
     }
 
-    renderSceneAdd(renderScene, grav_flare_model_gfx, mtx, GRAV_FLARE_INDEX, &ball->rigidBody.transform.position, NULL);
+    Gfx* dl = renderStateAllocateDLChunk(renderScene->renderState, 3);
+    Gfx* curr = dl;
+
+    gDPSetPrimColor(curr++, 255, 255, 0, 0, 0, ballOpacity(ball) * 255.0f);
+    gSPDisplayList(curr++, grav_flare_model_gfx);
+    gSPEndDisplayList(curr++);
+
+    renderSceneAdd(renderScene, dl, mtx, GRAV_FLARE_INDEX, &ball->rigidBody.transform.position, NULL);
 }
 
 void ballBurnRender(void* data, struct DynamicRenderDataList* renderList, struct RenderState* renderState) {

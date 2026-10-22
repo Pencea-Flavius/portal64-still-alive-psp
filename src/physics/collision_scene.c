@@ -267,7 +267,7 @@ int collisionSceneObjectIsTouchingPortal(struct CollisionObject* object, int por
     );
 }
 
-int collisionSceneObjectIsTouchingBehindPortal(struct CollisionObject* object, struct Vector3* contactPoint) {
+int collisionSceneObjectIsTouchingBehindPortal(struct CollisionObject* object, struct Vector3* contactPoint, struct Vector3* contactNormal) {
     if (!collisionSceneIsPortalOpen()) {
         return 0;
     }
@@ -279,15 +279,13 @@ int collisionSceneObjectIsTouchingBehindPortal(struct CollisionObject* object, s
             continue;
         }
 
-        struct Vector3 crossing;
-        vector3Sub(&object->body->transform.position, contactPoint, &crossing);
-
         float distance;
-        if (!planeRayIntersection(&gCollisionScene.portalPlanes[i], contactPoint, &crossing, &distance)) {
+        if (!planeRayIntersection(&gCollisionScene.portalPlanes[i], contactPoint, contactNormal, &distance)) {
             continue;
         }
 
-        vector3AddScaled(contactPoint, &crossing, distance, &crossing);
+        struct Vector3 crossing;
+        vector3AddScaled(contactPoint, contactNormal, distance, &crossing);
         transformPointInverseNoScale(gCollisionScene.portalTransforms[i], &crossing, &crossing);
 
         if (collisionSceneIsPortalLocalPointInBounds(&crossing)) {
@@ -338,7 +336,7 @@ static void collisionSceneUpdatePortalSides(int portalIndex) {
     for (int i = 0; i < gCollisionScene.dynamicObjectCount; ++i) {
         struct CollisionObject* object = gCollisionScene.dynamicObjects[i];
 
-        if (object->body->flags & RigidBodyIsKinematic) {
+        if ((object->body->flags & (RigidBodyIsKinematic | RigidBodyIsPlayer)) == RigidBodyIsKinematic) {
             continue;
         }
 
@@ -353,6 +351,8 @@ static void collisionSceneUpdatePortalSides(int portalIndex) {
 }
 
 void collisionSceneSetPortal(int portalIndex, struct Transform* transform, int roomIndex, int colliderIndex) {
+    int wasOpen = collisionSceneIsPortalOpen();
+
     gCollisionScene.portalTransforms[portalIndex] = transform;
     gCollisionScene.portalRooms[portalIndex] = roomIndex;
     gCollisionScene.portalColliderIndex[portalIndex] = colliderIndex;
@@ -371,6 +371,9 @@ void collisionSceneSetPortal(int portalIndex, struct Transform* transform, int r
         }
 
         collisionSceneCheckUnwokenObjectsNearPortal(portalIndex);
+        if (!wasOpen && collisionSceneIsPortalOpen()) {
+            collisionSceneCheckUnwokenObjectsNearPortal(1 - portalIndex);
+        }
     }
 
     collisionSceneUpdatePortalSides(portalIndex);
@@ -559,7 +562,7 @@ static void collisionSceneRaycastDynamic(struct CollisionScene* scene, struct Ra
 
         struct CollisionObject* object = scene->dynamicObjects[i];
 
-        if (object->body->currentRoom != RIGID_BODY_NO_ROOM && ((1LL << object->body->currentRoom) & hit->passedRooms) == 0) {
+        if (object->body->currentRoom != ROOM_NONE && (ROOM_FLAG_FROM_INDEX(object->body->currentRoom) & hit->passedRooms) == 0) {
             continue;
         }
 
@@ -584,7 +587,7 @@ int collisionSceneRaycast(struct CollisionScene* scene, int roomIndex, struct Ra
     hit->distance = maxDistance;
     hit->throughPortal = NULL;
     hit->roomIndex = roomIndex;
-    hit->passedRooms = 1LL << roomIndex;
+    hit->passedRooms = ROOM_FLAG_FROM_INDEX(roomIndex);
     hit->numPortalsPassed = 0;
 
     int roomsToCheck = 5;
@@ -605,7 +608,7 @@ int collisionSceneRaycast(struct CollisionScene* scene, int roomIndex, struct Ra
         // Even on a miss, the raycast should report which room it ended up in
         if (roomIndex != -1) {
             hit->roomIndex = roomIndex;
-            hit->passedRooms |= 1LL << roomIndex;
+            hit->passedRooms |= ROOM_FLAG_FROM_INDEX(roomIndex);
         }
 
         --roomsToCheck;
@@ -655,7 +658,7 @@ int collisionSceneRaycast(struct CollisionScene* scene, int roomIndex, struct Ra
 int collisionSceneRaycastOnlyDynamic(struct CollisionScene* scene, struct Ray* ray, short collisionLayers, float maxDistance, struct RaycastHit* hit) {
     hit->distance = maxDistance;
     hit->throughPortal = NULL;
-    hit->passedRooms = 1LL << hit->roomIndex;
+    hit->passedRooms = ROOM_FLAG_FROM_INDEX(hit->roomIndex);
     hit->numPortalsPassed = 0;
 
     collisionSceneRaycastDynamic(scene, ray, collisionLayers, hit);
@@ -847,11 +850,16 @@ static void collisionSceneWalkBroadphase(struct CollisionScene* collisionScene, 
 
 static void collisionSceneUpdateObjectCurrentRooms(struct Vector3* prevPosList){
     for (unsigned i = 0; i < gCollisionScene.dynamicObjectCount; ++i) {
-        gCollisionScene.dynamicObjects[i]->body->currentRoom = worldCheckDoorwayCrossings(
+        struct CollisionObject* object = gCollisionScene.dynamicObjects[i];
+        if (!collisionObjectIsActive(object)) {
+            continue;
+        }
+
+        object->body->currentRoom = worldCheckDoorwayCrossings(
             &gCurrentLevel->world,
             &prevPosList[i],
-            &gCollisionScene.dynamicObjects[i]->body->transform.position,
-            gCollisionScene.dynamicObjects[i]->body->currentRoom
+            &object->body->transform.position,
+            object->body->currentRoom
         );
     }
 }

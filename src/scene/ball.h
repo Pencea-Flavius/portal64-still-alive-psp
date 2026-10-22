@@ -3,18 +3,18 @@
 
 #include "graphics/render_types.h"
 
-#include "../physics/collision_object.h"
+#include "physics/collision_object.h"
 
 #define BALL_RADIUS     0.1f
-#define BALL_VELOCITY   3.0f
 #define BALL_FADE_TIME  3.0f
+#define BALL_FADE_MIN   0.4f
 
-#define MAX_BURN_MARKS  3
+#define MAX_BURN_MARKS  6
 
 enum BallFlags {
-    BallFlagsCaught = (1 << 0),
-    BallFlagsPowering = (1 << 1),
-    BallJustBounced = (1 << 2),
+    BallFlagsCaught      = (1 << 0),
+    BallFlagsPowering    = (1 << 1),
+    BallFlagsJustBounced = (1 << 2),
 };
 
 struct BallBurnMark {
@@ -48,6 +48,8 @@ void ballUpdate(struct Ball* ball);
 int ballIsActive(struct Ball* ball);
 int ballIsCollisionOn(struct Ball* ball);
 int ballIsCaught(struct Ball* ball);
+// Drawn fading out over the last BALL_FADE_TIME seconds.
+float ballOpacity(struct Ball* ball);
 void ballMarkCaught(struct Ball* ball);
 
 int isColliderForBall(struct CollisionObject* collisionObject);

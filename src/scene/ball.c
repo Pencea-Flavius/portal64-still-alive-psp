@@ -4,6 +4,7 @@
 #include "audio/clips.h"
 #include "controls/rumble_pak_clip.h"
 #include "dynamic_scene.h"
+#include "math/mathf.h"
 #include "effects/effect_definitions.h"
 #include "physics/collision_scene.h"
 #include "physics/collision_box.h"
@@ -59,11 +60,26 @@ void ballBurnFilterOnPortal(int portalIndex) {
     }
 }
 
+static void ballUpdateRoomFlags(struct Ball* ball) {
+    uint64_t roomFlags;
+    rigidBodyGetVisibleRooms(&ball->rigidBody, &roomFlags);
+    dynamicSceneSetRoomFlags(ball->dynamicId, roomFlags);
+}
+
+float ballOpacity(struct Ball* ball) {
+    if (ball->lifetime <= 0.0f || ball->lifetime >= BALL_FADE_TIME) {
+        return 1.0f;
+    }
+
+    return mathfLerp(BALL_FADE_MIN, 1.0f, ball->lifetime * (1.0f / BALL_FADE_TIME));
+}
+
 void ballInitInactive(struct Ball* ball) {
     ball->targetSpeed = 0.0f;
     ball->lifetime = 0.0f;
     ball->originalLifetime = 0.0f;
     ball->flags = 0;
+    ball->dynamicId = INVALID_DYNAMIC_OBJECT;
     ball->soundLoopId = SOUND_ID_NONE;
 }
 
@@ -90,7 +106,7 @@ void ballInit(struct Ball* ball, struct Vector3* position, struct Vector3* veloc
         &ball->rigidBody.transform.position,
         BALL_RADIUS
     );
-    dynamicSceneSetRoomFlags(ball->dynamicId, ROOM_FLAG_FROM_INDEX(startingRoom));
+    ballUpdateRoomFlags(ball);
 
     if (ballIsActive(ball)) {
         ball->soundLoopId = soundPlayerPlay(
@@ -113,11 +129,11 @@ void ballTurnOnCollision(struct Ball* ball) {
 void ballCheckBounced(struct Ball* ball) {
     struct ContactManifold* manifold = contactSolverNextManifold(&gContactSolver, &ball->collisionObject, NULL);
     if (!manifold || manifold->contactCount == 0) {
-        ball->flags &= ~BallJustBounced;
+        ball->flags &= ~BallFlagsJustBounced;
         return;
     }
 
-    if (ball->flags & BallJustBounced) {
+    if (ball->flags & BallFlagsJustBounced) {
         return;
     }
 
@@ -131,10 +147,18 @@ void ballCheckBounced(struct Ball* ball) {
         normal = manifold->normal;
     }
 
-    effectsParticlePlay(&gScene.effects, &gBallBounce, &ball->rigidBody.transform.position, &normal, NULL);
+    effectsParticlePlay(
+        &gScene.effects,
+        &gBallBounce,
+        &ball->rigidBody.transform.position,
+        &normal,
+        NULL,
+        ball->rigidBody.currentRoom,
+        ParticleCullingTypeCrossRooms
+    );
     soundPlayerPlay(soundsBallBounce, 1.5f, 1.0f, &ball->rigidBody.transform.position, &gZeroVec, SoundTypeAll);
     hudShowSubtitle(&gScene.hud, ENERGYBALL_IMPACT, SubtitleTypeCaption);
-    ball->flags |= BallJustBounced;
+    ball->flags |= BallFlagsJustBounced;
 
     if (other->body != NULL) {
         if (playerIsGrabbingObject(&gScene.player, other)) {
@@ -183,7 +207,7 @@ void ballCheckBounced(struct Ball* ball) {
 }
 
 void ballUpdate(struct Ball* ball) {
-    if (ball->targetSpeed == 0.0f || ballIsCaught(ball)) {
+    if (!ballIsActive(ball) || ballIsCaught(ball)) {
         return;
     }
 
@@ -200,7 +224,7 @@ void ballUpdate(struct Ball* ball) {
 
     ball->rigidBody.angularVelocity = gOneVec;
 
-    dynamicSceneSetRoomFlags(ball->dynamicId, ROOM_FLAG_FROM_INDEX(ball->rigidBody.currentRoom));
+    ballUpdateRoomFlags(ball);
 
     soundPlayerSetPosition(ball->soundLoopId, &ball->rigidBody.transform.position, &ball->rigidBody.velocity);
 
@@ -217,7 +241,15 @@ void ballUpdate(struct Ball* ball) {
             ball->soundLoopId = SOUND_ID_NONE;
             soundPlayerPlay(soundsBallExplode, 2.0f, 1.0f, &ball->rigidBody.transform.position, &gZeroVec, SoundTypeAll);
             hudShowSubtitle(&gScene.hud, ENERGYBALL_EXPLOSION, SubtitleTypeCaption);
-            effectsParticlePlay(&gScene.effects, &gBallBurst, &ball->rigidBody.transform.position, &gUp, NULL);
+            effectsParticlePlay(
+                &gScene.effects,
+                &gBallBurst,
+                &ball->rigidBody.transform.position,
+                &gUp,
+                NULL,
+                ball->rigidBody.currentRoom,
+                ParticleCullingTypeCrossRooms
+            );
         }
     }
 
@@ -239,6 +271,8 @@ int ballIsCaught(struct Ball* ball) {
 void ballMarkCaught(struct Ball* ball) {
     collisionSceneRemoveDynamicObject(&ball->collisionObject);
     rigidBodyMarkKinematic(&ball->rigidBody);
+    ball->rigidBody.velocity = gZeroVec;
+    ball->rigidBody.angularVelocity = gZeroVec;
     ball->flags |= BallFlagsCaught;
 
     soundPlayerStop(ball->soundLoopId);

@@ -1,14 +1,33 @@
 #ifndef __PARTICLE_EFFECT_H__
 #define __PARTICLE_EFFECT_H__
 
+#include <stdint.h>
+
 #include "graphics/color.h"
 #include "math/vector3.h"
 
 #define MAX_PARTICLES   16
 
 enum ParticleFlags {
-    ParticleFlagsBillboarded = (1 << 0),
-    ParticleFlagsNoGravity   = (1 << 1)
+    ParticleFlagsBillboarded        = (1 << 0),
+    ParticleFlagsNoGravity          = (1 << 1),
+};
+
+enum ParticleCullingType {
+    // Check frustum and starting room visibility.
+    // Good if effect doesn't cross doorways.
+    ParticleCullingTypeStandard,
+
+    // Stop if room is hidden on first viewing. Visible in all rooms afterward.
+    // Tradeoff to prevent pop in/out at doorways + not start in multiple rooms.
+    // Good for effects that cross doorways.
+    ParticleCullingTypeCrossRooms,
+};
+
+enum ParticleCullingFlags {
+    ParticleCullingFlagsCrossRooms  = (1 << 0),
+    ParticleCullingFlagsWasSeen     = (1 << 1),
+    ParticleCullingFlagsRoomWasSeen = (1 << 2),
 };
 
 struct ParticleEffectDefinition {
@@ -41,7 +60,9 @@ struct ParticleEffect {
     struct Vector3* position;
     struct Transform* parent;
     float time;
+    short roomIndex;
     short dynamicId;
+    enum ParticleCullingFlags cullingFlags;
 };
 
 void particleEffectInit(struct ParticleEffect* effect);
@@ -50,9 +71,13 @@ void particleEffectPlay(
     struct ParticleEffectDefinition* definition,
     struct Vector3* origin,
     struct Vector3* normal,
-    struct Transform* parent
+    struct Transform* parent,
+    int roomIndex,
+    enum ParticleCullingType cullingType
 );
 void particleEffectUpdate(struct ParticleEffect* effect);
+// For the render halves: nonzero skips drawing this frame.
+int particleEffectIsCulled(struct ParticleEffect* effect, uint64_t* visibleRooms);
 
 // Drawing is declared in the platform's half, which the build puts on the
 // include path.

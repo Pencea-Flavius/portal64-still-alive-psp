@@ -1,17 +1,16 @@
 #ifndef __RIGID_BODY_H__
 #define __RIGID_BODY_H__
 
+#include <stdint.h>
+
 #include "collision.h"
 #include "math/basis.h"
 #include "math/mathf.h"
 #include "math/transform.h"
 
-
 #define IDLE_SLEEP_FRAMES   ((int)(0.5f / FIXED_DELTA_TIME))
 
 #define KILL_PLANE_Y    -10.0f
-
-#define RIGID_BODY_NO_ROOM  0xFFFF
 
 #define MAX_PORTAL_SPEED (1000.0f / 64.0f)
 #define MIN_PORTAL_SPEED (300.0f / 64.0f)
@@ -45,19 +44,18 @@ struct RigidBody {
     struct Transform transform;
     struct Vector3 velocity;
     struct Vector3 angularVelocity;
-    // used to speed up caluclations
-    struct Basis rotationBasis;
+    struct Basis rotationBasis;      // Used to speed up calculations
 
     float mass;
     float massInv;
-    // most objects are going to be spheres
-    // and cubes. Any other object will just
-    // have some inaccurate physics 
-    // for cube m * side * side / 6
-    // for sphere 2/5 * m * r * r
+
+    // Most objects are going to be spheres and cubes.
+    // Any other object will just have some inaccurate physics.
+    // For cube:   m * side * side / 6
+    // For sphere: 2/5 * m * r * r
     float momentOfInertia;
     float momentOfInertiaInv;
-    
+
     enum RigidBodyFlags flags;
     unsigned short currentRoom;
     unsigned short sleepFrames;
@@ -68,12 +66,17 @@ void rigidBodyMarkKinematic(struct RigidBody* rigidBody);
 void rigidBodyUnmarkKinematic(struct RigidBody* rigidBody, float mass, float momentOfIniteria);
 void rigidBodyMarkFizzled(struct RigidBody* rigidBody);
 void rigidBodyApplyImpulse(struct RigidBody* rigidBody, struct Vector3* worldPoint, struct Vector3* impulse);
+void rigidBodyGetVisibleRooms(struct RigidBody* rigidBody, uint64_t* roomFlags);
 void rigidBodyUpdate(struct RigidBody* rigidBody);
-void rigidBodyVelocityAtLocalPoint(struct RigidBody* rigidBody, struct Vector3* localPoint, struct Vector3* worldVelocity);
-void rigidBodyVelocityAtWorldPoint(struct RigidBody* rigidBody, struct Vector3* worldPoint, struct Vector3* worldVelocity);
-void rigidBodyTeleport(struct RigidBody* rigidBody, struct Transform* from, struct Transform* to, struct Vector3* fromVelocity, struct Vector3* toVelocity, int toRoom);
 
 int rigidBodyCheckPortals(struct RigidBody* rigidBody);
-
+void rigidBodyTeleport(
+    struct RigidBody* rigidBody,
+    struct Transform* from,
+    struct Transform* to,
+    struct Vector3* fromVelocity,
+    struct Vector3* toVelocity,
+    int toRoom
+);
 
 #endif

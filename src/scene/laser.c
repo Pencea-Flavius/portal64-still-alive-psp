@@ -29,6 +29,10 @@ void laserInit(struct Laser* laser, struct RigidBody* parent, struct Vector3* of
 }
 
 void laserUpdate(struct Laser* laser) {
+    if (laser->dynamicId == INVALID_DYNAMIC_OBJECT) {
+        return;
+    }
+
     struct Ray startPosition = {
         .origin = *laser->parentOffset,
         .dir    = gForward

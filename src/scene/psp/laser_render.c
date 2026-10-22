@@ -46,9 +46,6 @@ static void laserBeamBuildVertices(struct PspVertexColor* vtx, struct LaserBeam*
 void laserRender(void* data, struct RenderScene* renderScene, struct Transform* fromView) {
     struct Laser* laser = (struct Laser*)data;
 
-    // Update here (in the render callback) so that it is after game logic.
-    laserUpdate(laser);
-
     if (laser->beamCount == 0) {
         return;
     }

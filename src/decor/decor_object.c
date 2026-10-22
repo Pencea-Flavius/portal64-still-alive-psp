@@ -17,16 +17,24 @@
     COLLISION_LAYERS_BLOCK_BALL           \
 )
 
-static void decorObjectReset(struct DecorObject* object) {
-    object->rigidBody.transform.position = object->originalPosition;
-    object->rigidBody.transform.rotation = object->originalRotation;
-    object->rigidBody.velocity = gZeroVec;
-    object->rigidBody.angularVelocity = gZeroVec;
-    object->rigidBody.flags &= ~(RigidBodyFizzled | RigidBodyDisableGravity);
-    object->rigidBody.flags |= RigidBodyFlagsGrabbable;
-    object->rigidBody.currentRoom = object->originalRoom;
-    object->fizzleTime = 0.0f;
-    object->collisionObject.collisionLayers = DECOR_COLLISION_LAYERS;
+static void decorObjectUpdateRoomFlags(struct DecorObject* decorObject) {
+    uint64_t roomFlags;
+    rigidBodyGetVisibleRooms(&decorObject->rigidBody, &roomFlags);
+    dynamicSceneSetRoomFlags(decorObject->dynamicId, roomFlags);
+}
+
+static void decorObjectReset(struct DecorObject* decorObject) {
+    decorObject->rigidBody.transform.position = decorObject->originalPosition;
+    decorObject->rigidBody.transform.rotation = decorObject->originalRotation;
+    decorObject->rigidBody.velocity = gZeroVec;
+    decorObject->rigidBody.angularVelocity = gZeroVec;
+    decorObject->rigidBody.flags &= ~(RigidBodyFizzled | RigidBodyDisableGravity);
+    decorObject->rigidBody.flags |= RigidBodyFlagsGrabbable;
+    decorObject->rigidBody.currentRoom = decorObject->originalRoom;
+    decorObject->fizzleTime = 0.0f;
+    decorObject->collisionObject.collisionLayers = DECOR_COLLISION_LAYERS;
+
+    decorObjectUpdateRoomFlags(decorObject);
 }
 
 void decorObjectInit(struct DecorObject* object, struct DecorObjectDefinition* definition, struct Transform* at, int room) {
@@ -53,17 +61,21 @@ void decorObjectInit(struct DecorObject* object, struct DecorObjectDefinition* d
 
     dynamicAssetModelPreload(definition->dynamicModelIndex);
     object->dynamicId = dynamicSceneAdd(object, decorObjectRender, &object->rigidBody.transform.position, definition->radius);
-    dynamicSceneSetRoomFlags(object->dynamicId, ROOM_FLAG_FROM_INDEX(room));
+    decorObjectUpdateRoomFlags(object);
 
     object->fizzleTime = 0.0f;
     object->playingSound = SOUND_ID_NONE;
 }
 
 int decorObjectUpdate(struct DecorObject* decorObject) {
+    if (decorObject->collisionObject.body == NULL) {
+        return 1;
+    }
+
     if (decorObject->collisionObject.flags & COLLISION_OBJECT_PLAYER_STANDING) {
         decorObject->collisionObject.flags &= ~COLLISION_OBJECT_PLAYER_STANDING;
     }
-    dynamicSceneSetRoomFlags(decorObject->dynamicId, ROOM_FLAG_FROM_INDEX(decorObject->rigidBody.currentRoom));
+    decorObjectUpdateRoomFlags(decorObject);
 
     if (decorObject->playingSound != SOUND_ID_NONE) {
         soundPlayerSetPosition(
@@ -85,13 +97,13 @@ int decorObjectUpdate(struct DecorObject* decorObject) {
             decorObject->playingSound = soundPlayerPlay(decorObject->definition->soundFizzleId, 2.0f, 1.0f, &decorObject->rigidBody.transform.position, &decorObject->rigidBody.velocity, SoundTypeAll);
         }
     } else if (fizzleResult == FizzleCheckResultEnd) {
-        if (decorObject->definition->flags & DecorObjectFlagsImportant) {
-            decorObjectReset(decorObject);
-            dynamicSceneSetRoomFlags(decorObject->dynamicId, ROOM_FLAG_FROM_INDEX(decorObject->rigidBody.currentRoom));
+        if (soundPlayerIsPlaying(decorObject->playingSound)) {
             return 1;
         }
+        decorObject->playingSound = SOUND_ID_NONE;
 
-        if (soundPlayerIsPlaying(decorObject->playingSound)) {
+        if (decorObject->definition->flags & DecorObjectFlagsImportant) {
+            decorObjectReset(decorObject);
             return 1;
         }
 
@@ -106,7 +118,7 @@ int decorObjectUpdate(struct DecorObject* decorObject) {
 }
 
 void decorObjectOnDeserialize(struct DecorObject* decorObject) {
-    dynamicSceneSetRoomFlags(decorObject->dynamicId, ROOM_FLAG_FROM_INDEX(decorObject->rigidBody.currentRoom));
+    decorObjectUpdateRoomFlags(decorObject);
 }
 
 struct DecorObject* decorObjectNew(struct DecorObjectDefinition* definition, struct Transform* at, int room) {
@@ -119,10 +131,6 @@ void decorObjectCleanup(struct DecorObject* decorObject) {
     dynamicSceneRemove(decorObject->dynamicId);
     collisionSceneRemoveDynamicObject(&decorObject->collisionObject);
     decorObject->dynamicId = INVALID_DYNAMIC_OBJECT;
-
-    if ((decorObject->playingSound != SOUND_ID_NONE) && (soundPlayerIsPlaying(decorObject->playingSound))) {
-        soundPlayerStop(decorObject->playingSound);
-    }
 }
 
 void decorObjectDelete(struct DecorObject* decorObject) {

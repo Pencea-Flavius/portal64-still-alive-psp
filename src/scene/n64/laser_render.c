@@ -43,11 +43,6 @@ static void laserBeamBuildVertices(Vtx* vtx, struct LaserBeam* beam, struct Vect
 
 void laserRender(void* data, struct RenderScene* renderScene, struct Transform* fromView) {
     struct Laser* laser = (struct Laser*)data;
-
-    // Update here (in the render callback) so that it is after game logic.
-    // Otherwise the beam positions could be incorrect (parent may have moved).
-    // The update function only affects rendering.
-    laserUpdate(laser);
     if (laser->beamCount == 0) {
         return;
     }

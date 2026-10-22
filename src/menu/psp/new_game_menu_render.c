@@ -13,7 +13,7 @@
 static struct Coloru8 gOverlayColor = {0, 0, 0, 85};
 static struct Coloru8 gMenuBorderColor = {164, 164, 164, 128};
 
-// gChapters' order, which is chapter number, against the material list's,
+// sChapters' order, which is chapter number, against the material list's,
 // which is the alphabetical order the generator emits. They disagree from ten
 // onwards, so the mapping is written out rather than computed.
 static const int sChapterMaterial[] = {

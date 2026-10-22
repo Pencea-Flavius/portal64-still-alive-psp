@@ -37,7 +37,7 @@ struct ChapterMenuItem {
     RenderDisplayList border;
     void* imageBuffer;
     struct Chapter* chapter;
-    // Index into gChapters; the PSP draws the screenshot from its material.
+    // Index into sChapters; the PSP draws the screenshot from its material.
     int chapterIndex;
     struct ChapterMenuItemRender render;
     int x;
